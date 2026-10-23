@@ -1,10 +1,13 @@
 import EventEmitter from 'events';
+import fs from 'fs';
+import path from 'path';
 import { AppDatabase } from '../db/database.ts';
 import { Broadcast, BroadcastState, CommentaryStyle, AudioMode, Match, MediaSource } from '../types.ts';
 import { PersianCommentaryEngine } from './persianCommentaryEngine.ts';
 import { HybridFootballAnalysisEngine } from './hybridAnalysisEngine.ts';
 import { PersianTTSProvider } from './ttsProvider.ts';
 import { AudioMixerService, ScheduledSpeech } from './audioMixer.ts';
+import { FFmpegWorkerService } from './ffmpegWorker.ts';
 
 export class BroadcastManager extends EventEmitter {
   private static instance: BroadcastManager;
@@ -118,14 +121,48 @@ export class BroadcastManager extends EventEmitter {
         await this.ttsProvider.synthesize(seg, params.commentatorVoice);
       }
 
-      // 3. BROADCASTING stage
-      await this.transitionState('BROADCASTING');
+      // 3. Media Packaging via FFmpeg
+      const ffmpegService = FFmpegWorkerService.getInstance();
+      let sourceLocalPath = source.url;
+
+      // Map URL to local file path if uploaded
+      if (source.url.startsWith('/uploads/')) {
+        sourceLocalPath = path.resolve(process.cwd(), 'data', 'uploads', path.basename(source.url));
+      } else if (source.url.startsWith('/')) {
+        sourceLocalPath = path.resolve(process.cwd(), source.url.slice(1));
+      }
+
+      let hlsReady = false;
+      if (fs.existsSync(sourceLocalPath)) {
+        console.log(`[BroadcastManager] Starting real FFmpeg HLS worker for local source: ${sourceLocalPath}`);
+        hlsReady = await ffmpegService.startHlsWorker({
+          sourcePath: sourceLocalPath,
+          targetLiveDelaySeconds: params.targetLiveDelaySeconds,
+        });
+      } else {
+        console.warn(`[BroadcastManager] Local source file not found at ${sourceLocalPath}; checking remote stream`);
+      }
+
+      // Only enter BROADCASTING if real output is playable or source stream is valid
+      if (hlsReady) {
+        newBroadcast.hlsUrl = '/live/index.m3u8';
+        await this.transitionState('BROADCASTING');
+      } else if (source.type === 'hls_stream' || source.url.endsWith('.m3u8') || source.url.startsWith('http')) {
+        // Direct stream passthrough
+        newBroadcast.hlsUrl = source.url;
+        await this.transitionState('BROADCASTING');
+      } else {
+        // Honest degraded state: no fake broadcasting without playable media
+        await this.transitionState('DEGRADED');
+        newBroadcast.errorMessage = 'خروجی HLS در دسترس نیست؛ منبع ویدیویی معتبر یافت نشد.';
+      }
+
       this.startTimelineTicker();
 
       this.db.addAuditLog({
         adminId: 'admin_master_1',
         action: 'START_BROADCAST',
-        details: `پخش تک‌کاناله برای مسابقه ${match.id} با موفقیت کلید خورد.`,
+        details: `پخش تک‌کاناله برای مسابقه ${match.id} با وضعیت ${newBroadcast.state} کلید خورد.`,
         ipAddress: '127.0.0.1',
       });
 
@@ -143,6 +180,9 @@ export class BroadcastManager extends EventEmitter {
       clearInterval(this.tickerInterval);
       this.tickerInterval = null;
     }
+
+    // Stop real FFmpeg worker
+    await FFmpegWorkerService.getInstance().stopHlsWorker();
 
     this.currentBroadcast.stoppedAt = new Date().toISOString();
     await this.transitionState('IDLE');

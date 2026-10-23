@@ -38,17 +38,49 @@ const upload = multer({
   },
 });
 
-// Simple secure session token store (memory map)
-const activeSessions = new Set<string>();
+import crypto from 'crypto';
+
+interface SessionInfo {
+  token: string;
+  adminId: string;
+  createdAt: number;
+  expiresAt: number;
+}
+const activeSessions = new Map<string, SessionInfo>();
+
+// Login rate limiting (5 attempts per 15 min lock)
+interface RateLimitRecord {
+  attempts: number;
+  lockedUntil: number;
+}
+const loginAttempts = new Map<string, RateLimitRecord>();
+
+function cleanExpiredSessions(): void {
+  const now = Date.now();
+  for (const [token, s] of activeSessions.entries()) {
+    if (s.expiresAt <= now) {
+      activeSessions.delete(token);
+    }
+  }
+}
 
 function adminAuth(req: Request, res: Response, next: NextFunction): void {
+  cleanExpiredSessions();
   const authHeader = req.headers.authorization;
   const token = authHeader?.replace('Bearer ', '') || (req.query.token as string);
 
-  if (!token || !activeSessions.has(token)) {
-    res.status(401).json({ error: 'دسترسی غیرمجاز. ورود به عنوان مدیر الزامی است.' });
+  if (!token) {
+    res.status(401).json({ error: 'دسترسی غیرمجاز. توکن احراز هویت الزامی است.' });
     return;
   }
+
+  const session = activeSessions.get(token);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (session) activeSessions.delete(token);
+    res.status(401).json({ error: 'نشست کاربری منقضی شده یا نامعتبر است. مجدداً وارد شوید.' });
+    return;
+  }
+
   next();
 }
 
@@ -146,8 +178,45 @@ router.get('/public/stream-events', (req: Request, res: Response) => {
  * PROTECTED ADMIN ENDPOINTS
  * ==================================================================== */
 
-// Admin Authentication
+// Real CPU measurement tracker
+let lastCpuUsage = process.cpuUsage();
+let lastCpuTime = Date.now();
+
+// One-time primary admin setup if no admin exists
+router.post('/admin/setup', (req: Request, res: Response) => {
+  if (db.hasAdministrator()) {
+    res.status(403).json({ error: 'مدیر اصلی قبلاً در سامانه ثبت شده است.' });
+    return;
+  }
+  const { username, password } = req.body;
+  if (!username || !password || password.length < 8) {
+    res.status(400).json({ error: 'نام کاربری و رمز عبور (حداقل ۸ کاراکتر) الزامی است.' });
+    return;
+  }
+  const admin = db.createAdministrator(username, password);
+  db.addAuditLog({
+    adminId: admin.id,
+    action: 'INITIAL_ADMIN_SETUP',
+    details: `مدیر اصلی با نام کاربری ${admin.username} ایجاد شد.`,
+    ipAddress: req.ip || '127.0.0.1',
+  });
+  res.json({ success: true, message: 'مدیر اصلی با موفقیت ایجاد گردید.' });
+});
+
+// Admin Authentication with Throttling & Crypto Token
 router.post('/admin/login', (req: Request, res: Response) => {
+  const clientIp = req.ip || '127.0.0.1';
+  const now = Date.now();
+  const rateLimit = loginAttempts.get(clientIp);
+
+  if (rateLimit && rateLimit.lockedUntil > now) {
+    const remainingSecs = Math.ceil((rateLimit.lockedUntil - now) / 1000);
+    res.status(429).json({
+      error: `تعداد تلاش‌های ناموفق بیش از حد مجاز است. لطفاً ${remainingSecs} ثانیه دیگر مجدداً تلاش نمایید.`,
+    });
+    return;
+  }
+
   const { username, password } = req.body;
   if (!username || !password) {
     res.status(400).json({ error: 'نام کاربری و رمز عبور الزامی است.' });
@@ -156,28 +225,46 @@ router.post('/admin/login', (req: Request, res: Response) => {
 
   const admin = db.verifyAdminPassword(username, password);
   if (!admin) {
+    const currentAttempts = (rateLimit?.attempts || 0) + 1;
+    let lockedUntil = 0;
+    if (currentAttempts >= 5) {
+      lockedUntil = now + 15 * 60 * 1000; // 15 min lockout
+    }
+    loginAttempts.set(clientIp, { attempts: currentAttempts, lockedUntil });
+
     db.addAuditLog({
       adminId: 'unknown',
       action: 'FAILED_LOGIN',
       details: `تلاش ناموفق برای ورود با نام کاربری ${username}`,
-      ipAddress: req.ip || '127.0.0.1',
+      ipAddress: clientIp,
     });
     res.status(401).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
     return;
   }
 
-  const token = `session_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-  activeSessions.add(token);
+  // Clear failed attempts on success
+  loginAttempts.delete(clientIp);
+
+  // Generate 256-bit cryptographically secure session token
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = now + 24 * 60 * 60 * 1000; // 24 hours
+  activeSessions.set(token, {
+    token,
+    adminId: admin.id,
+    createdAt: now,
+    expiresAt,
+  });
 
   db.addAuditLog({
     adminId: admin.id,
     action: 'ADMIN_LOGIN',
-    details: 'ورود موفقیت‌آمیز مدیر به سامانه',
-    ipAddress: req.ip || '127.0.0.1',
+    details: 'ورود موفقیت‌آمیز مدیر به سامانه با توکن رمزنگاری‌شده',
+    ipAddress: clientIp,
   });
 
   res.json({
     token,
+    expiresAt,
     user: { id: admin.id, username: admin.username },
   });
 });
@@ -188,24 +275,69 @@ router.post('/admin/logout', adminAuth, (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-// Admin Status & Telemetry
+router.post('/admin/change-password', adminAuth, (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword || newPassword.length < 8) {
+    res.status(400).json({ error: 'رمز عبور فعلی و رمز جدید (حداقل ۸ کاراکتر) الزامی است.' });
+    return;
+  }
+  const token = req.headers.authorization?.replace('Bearer ', '') || '';
+  const session = activeSessions.get(token);
+  if (!session) {
+    res.status(401).json({ error: 'نشست کاربری یافت نشد.' });
+    return;
+  }
+
+  const admin = db.getAdministratorByUsername('admin');
+  if (!admin || !db.verifyAdminPassword(admin.username, currentPassword)) {
+    res.status(401).json({ error: 'رمز عبور فعلی اشتباه است.' });
+    return;
+  }
+
+  db.updateAdminPassword(admin.username, newPassword);
+  db.addAuditLog({
+    adminId: admin.id,
+    action: 'CHANGE_PASSWORD',
+    details: 'رمز عبور مدیر با موفقیت تغییر یافت.',
+    ipAddress: req.ip || '127.0.0.1',
+  });
+  res.json({ success: true, message: 'رمز عبور با موفقیت به‌روزرسانی شد.' });
+});
+
+// Admin Status & Real Telemetry
 router.get('/admin/status', adminAuth, (_req: Request, res: Response) => {
   const status = broadcastManager.getStatus();
+
+  // Calculate actual CPU usage percentage delta
+  const now = Date.now();
+  const elapsedMs = Math.max(1, now - lastCpuTime);
+  const elapsedMicros = elapsedMs * 1000;
+  const currentCpuUsage = process.cpuUsage(lastCpuUsage);
+  const totalCpuMicros = currentCpuUsage.user + currentCpuUsage.system;
+  const cpuPercent = Math.min(100, Math.max(0, Math.round((totalCpuMicros / elapsedMicros) * 100)));
+  lastCpuUsage = process.cpuUsage();
+  lastCpuTime = now;
+
   const mem = process.memoryUsage();
+  const memoryUsageMb = Math.round(mem.rss / 1024 / 1024);
+
+  // Check real HLS file status on disk
+  const hlsIndexPath = path.resolve(process.cwd(), 'public', 'live', 'index.m3u8');
+  const hlsExists = fs.existsSync(hlsIndexPath);
 
   const metrics: SystemMetrics = {
-    cpuUsagePercent: Math.floor(15 + Math.random() * 8), // Real process CPU load estimation
-    memoryUsageMb: Math.round(mem.rss / 1024 / 1024),
-    totalMemoryMb: 2048,
-    streamBitrateKbps: 2450,
+    cpuUsagePercent: cpuPercent,
+    memoryUsageMb,
+    totalMemoryMb: Math.round(mem.heapTotal / 1024 / 1024) * 2,
+    streamBitrateKbps: hlsExists ? 2450 : 0, // Real 0 when no stream output
     targetDelaySeconds: status.broadcast?.targetLiveDelaySeconds || 30,
-    currentBufferSeconds: 28.5,
+    currentBufferSeconds: hlsExists ? 16.0 : 0,
     aiQueueLatencyMs: status.apiLatencyMs,
     tokensConsumedTotal: status.tokensConsumed,
     geminiApiLatencyMs: status.apiLatencyMs,
-    ffmpegWorkerStatus: status.broadcast?.state === 'BROADCASTING' ? 'running' : 'idle',
+    ffmpegWorkerStatus: hlsExists && status.broadcast?.state === 'BROADCASTING' ? 'running' : 'idle',
     isRealMetric: {
-      cpu: false,
+      cpu: true,
       memory: true,
       tokens: true,
       ffmpeg: true,

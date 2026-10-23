@@ -1,0 +1,90 @@
+PERSIAN AI SPORTSCASTER — FOCUSED REPAIR & TOKEN-BUDGET PROMPT (v2)
+Existing project: Ai-sports-Persian, already created in this Google AI Studio session and pushed to GitHub.
+
+ROLE: Senior TypeScript, FFmpeg, Gemini multimodal, security and streaming engineer. CONTINUE THE CURRENT PROJECT IN PLACE. Do not create a new project, redesign the UI, rewrite the architecture wholesale, or restate the original master specification.
+
+HIGHEST PRIORITY: Conserve free Gemini build tokens. Work on verified defects, minimal diffs, and measurable functionality. Do not waste tokens on elaborate planning, long narration, UI polishing, screenshots, synthetic demonstrations, speculative features, or repeated full-file rewrites. Use concise status updates only after completing a checkpoint. Reuse existing code and dependencies wherever safe. Read only relevant files. Batch related small changes. Avoid repeatedly running expensive AI/media tests. Use a short local fixture first, then one real end-to-end test if feasible.
+
+CURRENT PRODUCT INVARIANTS — NEVER BREAK:
+- Exactly one administrator-selected match, one active channel, one shared processing pipeline, one HLS output for all public viewers.
+- Only authenticated admin may choose a match, register an authorized stream, start/stop broadcasts, configure AI, or trigger processing.
+- Public route / is a read-only player; /admin is protected. No per-viewer Gemini, TTS or FFmpeg calls.
+- Persian RTL UI remains intact. Keep current frontend unless a small change is essential.
+- Do not scrape protected video or circumvent DRM. Only approved uploads or authorized sources.
+- Keep deployment on personal Ubuntu VPS via configurable IP/port 8080.
+
+CONFIRMED DEFECTS FROM SOURCE INSPECTION:
+1. server/services/hybridAnalysisEngine.ts only fuses already supplied videoClues/audioClues. There is no proven automatic extraction of actual frames and audio from media or real Gemini multimodal inference on these samples. Build the real input-to-evidence path; keep fusion as a downstream component. Never treat manual event injection as automatic analysis.
+2. server/services/ttsProvider.ts synthesizes tone-pulse WAV using createSynthesizedWav and labels provider mock_synth. This is NOT Persian speech. Add a real provider using the official supported Google GenAI TTS API/model and documented response audio decoding, if available for this environment and account. Do not invent model names. Keep mock only for explicitly labeled demo/test mode; never mark mock audio as real commentary. Fail gracefully if TTS is unavailable.
+3. server/services/ffmpegWorker.ts only constructs a shell command; it does not supervise a real worker. getOrCreatePlaylist creates references to nonexistent segment_*.ts. Replace fake playlists with actual FFmpeg-generated HLS segments and playlist, or explicitly show NOT AVAILABLE in AI Studio preview and provide a real VPS worker implementation. Use child_process.spawn with an executable and validated argument array, never interpolated shell strings. Log errors and exit codes, support stop/cleanup, enforce single instance, and validate real output segment existence before broadcasting.
+4. The ducking command references [1:a] with only one declared input; ai_only uses -an and therefore does not include generated commentary. Implement a correct, actually testable two-input (source + generated AI audio) audio-mix path, or defer it honestly while implementing a minimal recorded-video export with synchronized speech. Avoid silent videos labeled as AI commentary.
+5. server.ts publishes fake HLS manifests without real media segments. Do not serve them. No BROADCASTING state unless actual playable output exists.
+6. Match clock currently advances via setInterval rather than source media timestamps. Use source PTS/currentTime for recorded media and measured timestamps for live output; drop expired commentary, avoid overlap, preserve seek/pause semantics where relevant.
+7. Admin security: previously reported default admin/admin123!, simple SHA-256 password hashing, and session IDs generated using Math.random() (see server/apiRouter.ts). Remove all hardcoded production credentials; use scrypt or argon2/bcrypt with salts, cryptographically secure random session tokens, HttpOnly/SameSite cookies, appropriate Secure setting under HTTPS, server-side route authorization, login throttling and CSRF protection as applicable. Implement safe one-time admin setup. Never log secrets.
+8. server/apiRouter.ts returns random/fixed CPU/bitrate/buffer values and infers FFmpeg health from logical state. Replace with real measurements or explicit 'unavailable'; do not misrepresent monitoring data.
+9. Dockerfile installs production dependencies only but launches npx tsx server.ts, while tsx is a devDependency. Fix production runtime deterministically: compile server TypeScript to JS during build and run with node, or explicitly package required runtime dependency. Verify Docker build/start when tooling permits.
+10. Review persistence, authentication boundaries, SSRF protections including DNS rebinding/redirect chains, uploaded file handling, and single-channel locks. Fix concrete critical problems without a broad rewrite.
+
+IMPLEMENTATION ORDER / STOPPING POINTS:
+
+CHECKPOINT A — SECURITY + HONEST STATE + DEPLOYABLE BASE (MANDATORY FIRST)
+- Remove production default password and insecure session generation.
+- Stop publishing nonexistent HLS playlists and fake resource metrics.
+- Fix Docker runtime and add clear startup checks for FFmpeg, secrets and directories.
+- Preserve admin/public boundaries and one-channel lock.
+- Run TypeScript build/lint and focused tests. Correct actual errors.
+- Update a short file named PROGRESS.md with: completed, tests actually run, remaining, exact next action.
+- If token/time budget is running low, STOP here cleanly rather than half-implementing the next stage.
+
+CHECKPOINT B — REAL RECORDED-MP4 MEDIA PIPELINE (NEXT PRIORITY)
+- Accept an admin-uploaded, authorized short MP4 with safe limits and persisted source metadata.
+- Probe using FFprobe; process with FFmpeg into real HLS files and verify playlist+segments exist.
+- Allow public player to play the actual shared output. One worker only, never per viewer.
+- Implement source timestamps and playback progress grounded in media PTS.
+- For the first proof, do NOT promise fully live commentary or complex source separation.
+- Add one deterministic small integration test when FFmpeg is available.
+- Update PROGRESS.md.
+
+CHECKPOINT C — REAL GEMINI ANALYSIS + PERSIAN SPEECH
+- Extract a small number of actual video frames and short audio windows from a selected MP4, preserving source timestamps. Use FFmpeg; cap frame rate, window length and total bytes.
+- Send actual samples through documented official @google/genai multimodal methods, with server-side API key. Parse Zod-validated structured results; retry sparingly, cap tokens, and cache by source hash+time window.
+- Distinguish visual evidence, ASR/audio hints and confirmed metadata. Do not hallucinate player identities or score. Require stronger verification for goals/cards/penalties.
+- Generate original Persian commentary text from confirmed facts using concise prompts and structured output. No impersonation or voice cloning of real commentators.
+- Generate ACTUAL intelligible Persian speech via a supported TTS provider; if the chosen model lacks Persian support, report that clearly and leave a clean provider interface instead of inventing a success.
+- Test one short segment end to end. Update PROGRESS.md.
+
+CHECKPOINT D — SYNCHRONIZED SHARED OUTPUT (ONLY IF A–C PASS AND BUDGET REMAINS)
+- Produce a shared playable output with AI speech placed at correct media timestamps and a basic, valid audio mix. Preserve ambient sound when technically feasible. No claims of source separation until a real model exists.
+- For live HLS, only implement when recorded MP4 end-to-end succeeds. Implement measured buffer/delay, bounded queues, crash recovery, and graceful degraded mode.
+- Test with two browser clients or a lightweight concurrency test to prove no duplicate processing.
+- Update PROGRESS.md.
+
+TOKEN/COST CONTROL — STRICT:
+- Minimize tool calls and output verbosity; no full code dumps in chat.
+- Do not use Gemini inference repeatedly during development. Prefer unit tests and one short real API smoke test per capability.
+- Cache frames, transcripts, structured analysis, text and TTS by stable content hashes.
+- Analyze only selected windows; never send the full match repeatedly. Start with 5–10 seconds, 1 frame/second or less for the smoke test, increasing only if necessary.
+- Use configurable token budgets, timeouts and max concurrency=1 for the AI pipeline.
+- Avoid adding libraries unless required. Do not add a new frontend framework, database or unrelated service.
+- Do not perform automatic full-match analysis during preview startup.
+- Do not spend API tokens on simulated live data, decorative demos, or fake benchmark numbers.
+- Never reveal API keys, even in logs.
+
+HONEST ACCEPTANCE CHECKS:
+- A real MP4 produces a real playable HLS manifest and media segments (not a text-only mock).
+- Admin login is secure; no public default credentials.
+- A real sampled frame/audio window is actually submitted to Gemini when configured.
+- TTS produces audible Persian words, not tone pulses, when provider is configured.
+- Final output synchronization is based on media time, not wall-clock timers.
+- Public viewers never trigger AI/media jobs.
+- Distinguish tested vs untested vs environment-blocked features in PROGRESS.md.
+- Do not claim Docker, FFmpeg, Gemini, TTS or live streaming passed unless independently executed.
+
+WORKING METHOD:
+1. Inspect current repository and identify the minimum changed files needed for CHECKPOINT A.
+2. Implement A, run available checks, update PROGRESS.md.
+3. Continue B, C, D sequentially ONLY if previous checkpoint is working and remaining free quota allows.
+4. At any quota/rate-limit warning, or when work becomes too large for one run, STOP gracefully after saving compilable code and PROGRESS.md. Do not spin in retries.
+5. End with a VERY SHORT Persian summary (maximum 12 lines): checkpoint reached; changed files; tests passed/failed; actual media/AI/TTS status; exact next step tomorrow. Do not paste source code in the final answer.
+
+IMPORTANT: We intend to continue tomorrow, possibly with a paid plan. Maximize reliable progress TODAY under the free tier. Preserve existing GitHub project history and do not overwrite unrelated work. START WITH CHECKPOINT A NOW.

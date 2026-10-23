@@ -31,8 +31,22 @@ interface DatabaseSchema {
 const DB_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DB_DIR, 'app_db.json');
 
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
+export function hashPassword(password: string, salt?: string): string {
+  const actualSalt = salt || crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(password, actualSalt, 64).toString('hex');
+  return `${actualSalt}:${derived}`;
+}
+
+export function verifyPassword(password: string, storedHash: string): boolean {
+  if (!storedHash) return false;
+  if (!storedHash.includes(':')) {
+    // Legacy sha256 compatibility fallback
+    const legacy = crypto.createHash('sha256').update(password).digest('hex');
+    return legacy === storedHash;
+  }
+  const [salt, hash] = storedHash.split(':');
+  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(derived, 'hex'));
 }
 
 export class AppDatabase {
@@ -303,14 +317,37 @@ export class AppDatabase {
     return this.data.administrators.find((a) => a.username.toLowerCase() === username.toLowerCase());
   }
 
+  public hasAdministrator(): boolean {
+    return this.data.administrators.length > 0;
+  }
+
   public verifyAdminPassword(username: string, passwordPlain: string): Administrator | null {
     const admin = this.getAdministratorByUsername(username);
     if (!admin) return null;
-    const hashed = hashPassword(passwordPlain);
-    if (admin.passwordHash === hashed) {
+    if (verifyPassword(passwordPlain, admin.passwordHash)) {
       return admin;
     }
     return null;
+  }
+
+  public updateAdminPassword(username: string, newPasswordPlain: string): boolean {
+    const admin = this.getAdministratorByUsername(username);
+    if (!admin) return false;
+    admin.passwordHash = hashPassword(newPasswordPlain);
+    this.save();
+    return true;
+  }
+
+  public createAdministrator(username: string, passwordPlain: string): Administrator {
+    const newAdmin: Administrator = {
+      id: `admin_${Date.now()}`,
+      username: username.trim().toLowerCase(),
+      passwordHash: hashPassword(passwordPlain),
+      createdAt: new Date().toISOString(),
+    };
+    this.data.administrators.push(newAdmin);
+    this.save();
+    return newAdmin;
   }
 
   // Matches & Teams

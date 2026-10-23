@@ -30,14 +30,11 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server ./server
-COPY --from=builder /app/server.ts ./server.ts
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 # Persistent storage directories
 RUN mkdir -p /app/data/uploads /app/data/tts_cache /app/public/live
 
 EXPOSE 8080
 
-CMD ["npx", "tsx", "server.ts"]
+CMD ["node", "dist/server.js"]

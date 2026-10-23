@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 import dotenv from 'dotenv';
 import apiRouter from './server/apiRouter.ts';
 import { FFmpegWorkerService } from './server/services/ffmpegWorker.ts';
@@ -30,23 +31,51 @@ const uploadsDir = path.resolve(process.cwd(), 'data', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
-// Dynamic HLS endpoint (/live/index.m3u8)
-app.get('/live/index.m3u8', (_req, res) => {
-  const broadcastManager = BroadcastManager.getInstance();
-  const status = broadcastManager.getStatus();
-  const pts = status.broadcast?.currentPts || 0;
-  const playlist = FFmpegWorkerService.getOrCreatePlaylist(pts);
+// Real HLS endpoint: strictly serve files from disk only when FFmpeg outputs them
+const hlsLiveDir = path.resolve(process.cwd(), 'public', 'live');
+if (!fs.existsSync(hlsLiveDir)) fs.mkdirSync(hlsLiveDir, { recursive: true });
 
-  res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.send(playlist);
-});
+app.use('/live', express.static(hlsLiveDir, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.m3u8')) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    } else if (filePath.endsWith('.ts')) {
+      res.setHeader('Content-Type', 'video/mp2t');
+      res.setHeader('Cache-Control', 'max-age=10');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+  },
+}));
 
 // API routes
 app.use('/api/v1', apiRouter);
 
+function checkSystemPrerequisites(): { ffmpegReady: boolean; geminiReady: boolean } {
+  let ffmpegReady = false;
+  try {
+    execSync('ffmpeg -version', { stdio: 'ignore' });
+    ffmpegReady = true;
+  } catch {
+    ffmpegReady = false;
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  const geminiReady = !!(apiKey && apiKey !== 'MY_GEMINI_API_KEY');
+
+  console.log('[STARTUP CHECK] Environment verification:');
+  console.log(`  - FFmpeg binary: ${ffmpegReady ? 'INSTALLED (/usr/bin/ffmpeg)' : 'MISSING (VPS required)'}`);
+  console.log(`  - Gemini API key: ${geminiReady ? 'CONFIGURED' : 'NOT CONFIGURED (Fallback mode)'}`);
+  console.log(`  - Uploads dir: ${uploadsDir}`);
+  console.log(`  - HLS Live dir: ${hlsLiveDir}`);
+
+  return { ffmpegReady, geminiReady };
+}
+
 async function startServer() {
+  checkSystemPrerequisites();
+
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

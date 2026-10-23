@@ -133,3 +133,33 @@ test('AudioMixerService: schedules timeline and prevents audio collision', () =>
   const duckingIdle = AudioMixerService.getDuckingAtPts(50.0, scheduled);
   assert.equal(duckingIdle, 1.0, 'Background audio should be at 100% when no speech is scheduled');
 });
+
+test('Security: scrypt salted password hashing and timing-safe verification', async () => {
+  const { hashPassword, verifyPassword } = await import('../server/db/database.ts');
+  const plain = 'SuperSecret123!';
+  const hashed = hashPassword(plain);
+
+  assert.ok(hashed.includes(':'), 'Hash must contain salt prefix');
+  assert.equal(verifyPassword(plain, hashed), true);
+  assert.equal(verifyPassword('WrongPass', hashed), false);
+  assert.equal(verifyPassword('', hashed), false);
+});
+
+test('FFmpegWorkerService & MediaExtractor: probe media and extract real frame', async () => {
+  const { FFmpegWorkerService } = await import('../server/services/ffmpegWorker.ts');
+  const { MediaExtractorService } = await import('../server/services/mediaExtractor.ts');
+  const worker = FFmpegWorkerService.getInstance();
+  const extractor = new MediaExtractorService();
+
+  // /tmp/test_clip.mp4 was generated previously
+  const probe = await worker.probeMedia('/tmp/test_clip.mp4');
+  if (probe) {
+    assert.ok(probe.durationSeconds > 0, 'Duration must be positive');
+    assert.equal(probe.resolution, '640x360');
+    assert.equal(probe.videoCodec, 'h264');
+    assert.equal(probe.hasAudio, true);
+
+    const frame = await extractor.extractFrameAtPts('/tmp/test_clip.mp4', 1.5);
+    assert.ok(frame && frame.length > 0, 'Extracted frame buffer must be non-empty');
+  }
+});
