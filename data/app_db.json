@@ -1,0 +1,321 @@
+{
+  "administrators": [
+    {
+      "id": "admin_master_1",
+      "username": "admin",
+      "passwordHash": "5c06eb3d5a05a19f49476d694ca81a36344660e9d5b98e3d6a6630f31c2422e7",
+      "createdAt": "2026-10-23T15:31:07.160Z"
+    }
+  ],
+  "competitions": [
+    {
+      "id": "comp_pgpl_2025",
+      "nameFa": "لیگ برتر خلیج فارس",
+      "nameEn": "Persian Gulf Pro League",
+      "country": "ایران",
+      "season": "1403-1404"
+    },
+    {
+      "id": "comp_ucl_2025",
+      "nameFa": "لیگ قهرمانان اروپا",
+      "nameEn": "UEFA Champions League",
+      "country": "اروپا",
+      "season": "2024-2025"
+    }
+  ],
+  "teams": [
+    {
+      "id": "team_pers",
+      "nameFa": "پرسپولیس تهران",
+      "nameEn": "Persepolis FC",
+      "shortCode": "PRS",
+      "primaryColor": "#e11d48",
+      "secondaryColor": "#ffffff",
+      "roster": [
+        {
+          "number": 1,
+          "nameFa": "الکسیس گندوز",
+          "position": "دروازه‌بان"
+        },
+        {
+          "number": 6,
+          "nameFa": "محمدحسین کنعانی‌زادگان",
+          "position": "مدافع میانی"
+        },
+        {
+          "number": 8,
+          "nameFa": "مرتضی پورعلی‌گنجی",
+          "position": "مدافع"
+        },
+        {
+          "number": 7,
+          "nameFa": "سروش رفیعی",
+          "position": "هافبک بازیساز"
+        },
+        {
+          "number": 10,
+          "nameFa": "عیسی آل‌کثیر",
+          "position": "مهاجم نوک"
+        },
+        {
+          "number": 21,
+          "nameFa": "سعید صادقی",
+          "position": "وینگر راست"
+        },
+        {
+          "number": 9,
+          "nameFa": "مهدی ترابی",
+          "position": "وینگر چپ"
+        },
+        {
+          "number": 88,
+          "nameFa": "سینا اسدبیگی",
+          "position": "هافبک دفاعی"
+        }
+      ]
+    },
+    {
+      "id": "team_est",
+      "nameFa": "استقلال تهران",
+      "nameEn": "Esteghlal FC",
+      "shortCode": "EST",
+      "primaryColor": "#2563eb",
+      "secondaryColor": "#ffffff",
+      "roster": [
+        {
+          "number": 1,
+          "nameFa": "سید حسین حسینی",
+          "position": "دروازه‌بان"
+        },
+        {
+          "number": 3,
+          "nameFa": "رافائل سیلوا",
+          "position": "مدافع"
+        },
+        {
+          "number": 55,
+          "nameFa": "سامان فلاح",
+          "position": "مدافع"
+        },
+        {
+          "number": 14,
+          "nameFa": "زبیر نیک‌نفس",
+          "position": "هافبک دفاعی"
+        },
+        {
+          "number": 22,
+          "nameFa": "دیدیه اندونگ",
+          "position": "هافبک"
+        },
+        {
+          "number": 7,
+          "nameFa": "مهرداد محمدی",
+          "position": "وینگر"
+        },
+        {
+          "number": 19,
+          "nameFa": "گوستاوو بلانکو",
+          "position": "مهاجم نوک"
+        },
+        {
+          "number": 77,
+          "nameFa": "جلال‌الدین ماشاریپوف",
+          "position": "پلی‌میکر"
+        }
+      ]
+    }
+  ],
+  "matches": [
+    {
+      "id": "match_tehran_derby_104",
+      "competitionId": "comp_pgpl_2025",
+      "homeTeamId": "team_pers",
+      "awayTeamId": "team_est",
+      "homeScore": 1,
+      "awayScore": 0,
+      "matchClock": 4457,
+      "period": "second_half",
+      "stadium": "ورزشگاه آزادی تهران",
+      "referee": "بیژن حیدری",
+      "scheduledAt": "2026-10-23T15:31:07.160Z",
+      "isLive": true
+    }
+  ],
+  "mediaSources": [
+    {
+      "id": "source_demo_derby_clip",
+      "matchId": "match_tehran_derby_104",
+      "title": "خلاصه صحنه‌های دربی پایتخت (۱۰۴) - کیفیت HD مجاز",
+      "type": "local_demo",
+      "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+      "durationSeconds": 596,
+      "resolution": "1280x720",
+      "codec": "h264/aac",
+      "isVerifiedRights": true,
+      "notes": "منبع ویدیویی مجاز با حق پخش تایید شده برای استریم آزمایشی و تست هماهنگ‌سازی PTS",
+      "createdAt": "2026-10-23T15:31:07.160Z"
+    }
+  ],
+  "broadcasts": [
+    {
+      "id": "bcast_live_channel_1",
+      "matchId": "match_tehran_derby_104",
+      "sourceId": "source_demo_derby_clip",
+      "state": "BROADCASTING",
+      "commentaryStyle": "energetic",
+      "commentatorVoice": "پژمان (گزارشگر رسمی پرحرارت فارسی)",
+      "audioMode": "ducking",
+      "targetLiveDelaySeconds": 30,
+      "currentPts": 179.5,
+      "hlsUrl": "/live/index.m3u8",
+      "activeViewerCount": 14,
+      "startedAt": "2026-10-23T15:31:07.160Z"
+    }
+  ],
+  "detectedEvents": [
+    {
+      "id": "evt_1",
+      "matchId": "match_tehran_derby_104",
+      "sourceTimestampPts": 24,
+      "type": "kickoff",
+      "confidence": 0.98,
+      "evidenceSources": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "verificationStatus": "verified",
+      "factualDescriptionFa": "سوت آغاز مسابقه دربی ۱۰۴ توسط داور مسابقه به صدا درآمد.",
+      "tacticalNotesFa": "پرسپولیس بازی را با آرایش ۴-۲-۳-۱ آغاز کرده و استقلال ۳-۵-۲ بازی می‌کند.",
+      "createdAt": "2026-10-23T14:31:07.160Z"
+    },
+    {
+      "id": "evt_2",
+      "matchId": "match_tehran_derby_104",
+      "sourceTimestampPts": 58.5,
+      "type": "shot",
+      "teamId": "team_est",
+      "playerName": "گوستاوو بلانکو",
+      "confidence": 0.92,
+      "evidenceSources": [
+        "video_frames",
+        "audio_clues"
+      ],
+      "verificationStatus": "verified",
+      "factualDescriptionFa": "شوت سرکش بلانکو از پشت محوطه جریمه که با اختلاف اندک از بالای تیرک افقی به بیرون رفت.",
+      "tacticalNotesFa": "توپ دوم ناشی از دفع ناقص خط دفاعی پرسپولیس.",
+      "createdAt": "2026-10-23T14:49:27.160Z"
+    },
+    {
+      "id": "evt_3",
+      "matchId": "match_tehran_derby_104",
+      "sourceTimestampPts": 112,
+      "type": "goal",
+      "teamId": "team_pers",
+      "playerName": "عیسی آل‌کثیر",
+      "confidence": 0.99,
+      "evidenceSources": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "verificationStatus": "verified",
+      "factualDescriptionFa": "گل اول برای پرسپولیس! روی ارسال دقیق از جناح راست و ضربه سر دیدنی آل‌کثیر دروازه استقلال باز شد.",
+      "tacticalNotesFa": "انتقال سریع از دفاع به حمله و ارسال در فضای بین مدافعان میانی.",
+      "createdAt": "2026-10-23T15:11:07.160Z"
+    },
+    {
+      "id": "evt_1792769504200_f3zb",
+      "matchId": "match_tehran_derby_104",
+      "sourceTimestampPts": 179.5,
+      "type": "shot",
+      "teamId": "team_pers",
+      "playerName": "مهدی ترابی",
+      "confidence": 1,
+      "evidenceSources": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "verificationStatus": "verified",
+      "factualDescriptionFa": "شوت به سمت دروازه توسط مهدی ترابی تیم پرسپولیس تهران",
+      "tacticalNotesFa": "",
+      "createdAt": "2026-10-23T15:31:44.200Z"
+    }
+  ],
+  "commentarySegments": [
+    {
+      "id": "comm_1",
+      "linkedEventId": "evt_1",
+      "persianText": "به نام خدا و سلام به همه فوتبال‌دوستان و هواداران پرشور ایرانی. دربی پایتخت، هیجان‌انگیزترین نبرد فوتبال آسیا آغاز شد!",
+      "sourceMediaTargetPts": 24.5,
+      "priority": "high",
+      "intensity": "moderate",
+      "emotion": "excited",
+      "estimatedDurationSeconds": 6.5,
+      "confidence": 0.98,
+      "evidenceReferences": [
+        "kickoff_whistle",
+        "crowd_roar"
+      ],
+      "delivered": true
+    },
+    {
+      "id": "comm_2",
+      "linkedEventId": "evt_2",
+      "persianText": "چه شوتی زد بلانکو! زنگ خطر جدی برای دروازه گندوز به صدا درمی‌آد؛ توپ دوم رو عالی جمع کرد و شوت سرضربش نفس‌ها رو حبس کرد.",
+      "sourceMediaTargetPts": 59,
+      "priority": "high",
+      "intensity": "high",
+      "emotion": "dramatic",
+      "estimatedDurationSeconds": 7.2,
+      "confidence": 0.94,
+      "evidenceReferences": [
+        "shot_box_edge",
+        "crowd_gasp"
+      ],
+      "delivered": true
+    },
+    {
+      "id": "comm_3",
+      "linkedEventId": "evt_3",
+      "persianText": "توی دروازه! گللللل برای سرخ‌پوشان! عیسی آل‌کثیر کار رو تموم می‌کنه! یک ارسال مواج و دیدنی و ضربه سری که مهارش برای حسینی غیرممکن بود!",
+      "sourceMediaTargetPts": 113,
+      "priority": "critical",
+      "intensity": "explosive",
+      "emotion": "cheering",
+      "estimatedDurationSeconds": 8.5,
+      "confidence": 0.99,
+      "evidenceReferences": [
+        "goal_confirmed",
+        "spectator_celebration"
+      ],
+      "delivered": true
+    }
+  ],
+  "audioAssets": [],
+  "auditLogs": [
+    {
+      "adminId": "admin_master_1",
+      "action": "ADMIN_LOGIN",
+      "details": "ورود موفقیت‌آمیز مدیر به سامانه",
+      "ipAddress": "127.0.0.1",
+      "id": "audit_1792769492982_hl1f",
+      "timestamp": "2026-10-23T15:31:32.982Z"
+    },
+    {
+      "id": "audit_init",
+      "adminId": "admin_master_1",
+      "action": "BOOTSTRAP",
+      "details": "سیستم گزارشگر هوشمند فارسی با تنظیمات اولیه راه‌اندازی شد.",
+      "ipAddress": "127.0.0.1",
+      "timestamp": "2026-10-23T15:31:07.160Z"
+    }
+  ],
+  "systemSettings": {
+    "channelName": "شبکه اختصاصی فوتبال AI",
+    "defaultDelay": "30",
+    "maxLiveWaitSeconds": "90",
+    "autoTranscribe": "true"
+  }
+}

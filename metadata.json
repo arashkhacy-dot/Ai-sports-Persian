@@ -1,0 +1,6 @@
+{
+  "name": "Persian AI SportsCaster | گزارشگر هوشمند فوتبال",
+  "description": "پخش زنده و تک‌کاناله مسابقات فوتبال با تحلیل چندوجهی و گزارش صوتی زنده فارسی همراه با کنترل اختصاصی مدیر و همگام‌سازی زمانی PTS",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

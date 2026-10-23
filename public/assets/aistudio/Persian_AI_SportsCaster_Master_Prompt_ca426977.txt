@@ -1,0 +1,72 @@
+MASTER BUILD PROMPT — PERSIAN AI SPORTSCASTER
+Version 1.0 | Single-Channel, Administrator-Controlled AI Football TV
+
+ROLE AND GOAL
+Act as a senior full-stack, streaming-media, multimodal-AI, Persian TTS, security and DevOps engineering team. BUILD a functional, self-hostable Persian RTL web application, not merely a mockup. One authenticated administrator selects a football match and an authorized video source; the system analyzes video plus original audio plus verified match metadata, generates ORIGINAL Persian football commentary, synchronizes it with video and stadium sound, and publishes ONE shared output for all viewers. Be explicit about what is genuinely implemented, simulated, or requires a VPS.
+
+NON-NEGOTIABLE PRODUCT RULES
+- Exactly ONE active channel, match, source, media pipeline, analysis pipeline, TTS pipeline and shared output at any time.
+- ONLY the administrator may search fixtures, register sources, upload footage, change settings, start/stop broadcasts, or trigger AI work.
+- Public viewers at / can ONLY watch the administrator-selected broadcast, see verified match details and use ordinary player controls. No viewer login, match search, source selection or per-viewer AI processing.
+- Public viewer requests must never trigger Gemini, TTS, FFmpeg or new broadcast workers.
+- Deliver ONE centrally processed HLS output to all viewers; viewer count affects distribution bandwidth, not AI processing count.
+- The app must export from Google AI Studio and deploy independently on an Ubuntu VPS via configurable host/IP and port (default 8080).
+- Only ingest, process and rebroadcast content for which appropriate rights and authorization exist. Never bypass DRM, paywalls or access controls, or extract unauthorized streams.
+
+STACK AND ENVIRONMENT
+Build initially in Google AI Studio Build Mode. Frontend: React, TypeScript, Vite, Tailwind, HLS.js, Persian RTL, Vazirmatn. Backend: Node.js TypeScript with Express or Fastify, official Google GenAI SDK, Zod, SQLite (repository abstraction for PostgreSQL later), REST + SSE. Media: FFmpeg/FFprobe, HLS packaging; optional Python worker for real speech separation. Deployment: Docker Compose, Nginx, environment-based configuration, health checks and persistent volumes. Keep secrets server-side. If AI Studio preview cannot execute FFmpeg/Docker or a model, provide real deployable integration code and honestly label preview limitations; never fake success.
+
+PUBLIC TV PAGE (/)
+A polished, minimal, mobile-first Persian RTL football TV: large responsive HLS video player, current match and competition, team names, verified score and clock, genuine LIVE status, commentary status, buffering/reconnect indicators, volume/fullscreen controls, and an offline message: «در حال حاضر مسابقه‌ای در حال پخش نیست.» No search, upload, admin or AI buttons. Optionally show next match set by admin. Handle HLS unsupported browsers and playback errors gracefully.
+
+SECURE ADMIN DASHBOARD (/admin)
+Secure admin login/logout, protected server-side authorization and audit log. Functional controls for match search/creation/selection, source URL registration/validation, authorized MP4 upload, start/stop broadcast, commentary style and voice, audio mode, target delay, processing progress, source health, verified event review, logs, resource usage, API latency/usage and errors. Clearly distinguish real measurements from estimates. No default production password.
+
+MATCH DISCOVERY AND SOURCES
+MatchDiscoveryProvider interface for future licensed fixture APIs; Persian/English team search. Use actual live fixtures only when a real provider is configured; otherwise allow manual match creation and clearly marked demo fixtures. StreamSourceProvider supports authorized HLS URL, uploaded MP4, local test file, and a future RTMP adapter. Validate source format/codecs/audio via FFprobe where available. Protect URL fetching against SSRF, private-network redirects, malicious playlists and unapproved protocols. Do not assume sites such as Varzesh3 grant rebroadcast rights.
+
+BROADCAST STATE AND CONCURRENCY
+States: IDLE, PREPARING, ANALYZING, BROADCASTING, DEGRADED, STOPPING, ERROR. Persist state and implement an exclusive broadcast lock so simultaneous requests never start multiple pipelines. When switching matches, gracefully stop the old process, release resources, clear obsolete queues, use a new broadcast ID/output directory, then start the new pipeline. On restart reconcile DB state with real worker status. DEGRADED must preserve playable video where possible.
+
+HYBRID MULTIMODAL ANALYSIS
+Build HybridFootballAnalysisEngine with 3 evidence channels:
+1. Video: sample bounded clips/frames with original media PTS to detect visible scoreboard, clock, shots, saves, corners, cards, celebrations, goals and tactical clues. Sparse frames cannot guarantee detection of all fast actions.
+2. Original audio: analyze/transcribe short audio windows to extract possible names, event clues and crowd reaction. Original commentary is supporting evidence, not guaranteed truth and not text to translate verbatim.
+3. Verified metadata: teams, rosters, competition, score and confirmed events entered by admin or a licensed data API.
+Fuse evidence with confidence thresholds, deduplicate events, and require especially strong confirmation for goals, score changes, penalties and red cards. Never invent player identities or match facts. Every event includes ID, match ID, source timestamp, type, team/player if verified, confidence, evidence sources, verification status and factual description. Store a rolling verified match memory.
+
+ORIGINAL PERSIAN COMMENTARY
+Generate fluent contemporary Iranian Persian football commentary with natural energy, intelligent tactical analysis, occasional humor and football terminology (پرس از جلو، ضدحمله، پاس عمقی، فضای پشت دفاع، توپ دوم، انتقال سریع، ارسال خطرناک، شوت سرضرب). Three admin-selectable modes: balanced, energetic, analytical. Use an original commentator persona, inspired by broad professional qualities rather than impersonating a real person or cloning their voice. Allow silence; avoid repetitive catchphrases and nonstop speech. Structured JSON: commentary ID, linked event, Persian text, source-media target timestamp, priority, intensity, emotion, estimated duration, confidence and evidence references. Use Zod validation. Facts outrank excitement.
+
+PERSIAN TTS AND AUDIO
+Implement PersianTTSProvider with a real supported Gemini TTS adapter, a clearly labeled mock adapter for tests, and future custom-provider interface. Expose only controls supported by the actual provider. Cache generated timestamped audio. TTS errors must not freeze video. AudioProcessingService supports: (1) AI voice only, source audio muted; (2) AI voice with original audio ducking; (3) real speech-separated stadium ambience only when a genuine separation backend is configured. Preserve crowd/whistles when feasible, prevent clipping, and never claim perfect original-commentator removal. The first two modes should work without a GPU; third may require separate hardware.
+
+TIMING AND SYNCHRONIZATION
+Source media PTS is the authoritative timeline, NEVER API response arrival time. Maintain timestamped video windows, events, speech assets and a centralized scheduling queue. Implement priority, overlap prevention, deduplication, pause/resume and seek handling for recorded video, and late-speech dropping/shortening for live. Admin-configurable target live delay 10–90 seconds, default 30 seconds; it is a target, not a guaranteed measurement. For Phase 1 first prove correct synchronization on a 10–15 minute recorded match clip. Then test live HLS. Do not claim browser-only overlay is equivalent to a server-side remixed shared stream.
+
+SHARED MEDIA PIPELINE
+One FFmpeg/FFprobe worker ingests approved media, buffers it, extracts bounded analysis windows, invokes one AI pipeline, generates one commentary track, mixes selected background audio and commentary according to PTS, and produces one HLS playlist/segments for all viewers. Prefer stream-copy of video when compatible; transcode only when needed. Use bounded queues, timeouts, retries with backoff, cleanup and worker health monitoring. Serve shared HLS with Nginx and correct MIME/cache headers. Example routes: http://SERVER_IP:8080/ and /admin and /live/index.m3u8. Avoid stale segment contamination across broadcasts. Support HTTPS reverse proxy. If server-side mixing cannot run in AI Studio preview, implement the VPS worker and its real integration contract rather than pretending it works.
+
+DATA AND APIS
+SQLite entities: Administrator, Match, Team, Competition, MediaSource, Broadcast, AnalysisJob, DetectedEvent, CommentarySegment, AudioAsset, SystemSettings, AuditLog. Public read-only endpoints: GET /api/v1/public/channel, /status, /match. Protected admin endpoints: login/logout, match CRUD, upload, media validation, broadcast start/stop/status, event verification, settings, logs, health. Use SSE for job progress. Do not expose raw secrets or internal worker control endpoints.
+
+SECURITY AND RESOURCE LIMITS
+Hash passwords, use HttpOnly sessions, secure cookies under HTTPS, CSRF defense as applicable, rate limiting, role checks, strict file size/MIME checks, source URL allowlisting, redirect revalidation and SSRF protections. No public admin actions. Optimize for a CPU-only VPS, one channel, 720p target with configurable lower fallback; do not assume CPU can transcode 720p live without benchmarks. Measure CPU/RAM/network, stream bitrate, buffer delay, FFmpeg status, AI/TTS queue latency and provider errors. Viewer distribution bandwidth still grows with viewer count.
+
+FAILURE BEHAVIOR
+Handle missing API key, Gemini quota/timeouts, TTS failure, source interruption, FFmpeg crash, audio separation failure, database/network faults and insufficient buffer. Continue video when feasible, enter DEGRADED when appropriate, use explicitly configured fallback audio, and never fabricate commentary or operational metrics. Cleanly stop idle workers.
+
+DELIVERABLES AND TESTS
+Provide complete source, working preview for supported functionality, package scripts, .env.example, Dockerfile(s), docker-compose.yml, Nginx config, migrations, admin bootstrap, FFmpeg worker integration, README with exact Ubuntu 24.04+ deployment commands, API docs, tests and limitations. Test: admin-only controls, concurrent-start lock, one analysis/TTS job for 10 viewers, single HLS output, timestamp synchronization, seek/pause, duplicate/late event handling, SSRF and invalid uploads, failed/missing API credentials, crash recovery, worker cleanup, correct RTL and production build. Never say a test passed unless it actually ran.
+
+IMPLEMENTATION ORDER
+A. Real app skeleton, SQLite, admin auth, broadcast lock/state, APIs.
+B. Functional Persian public TV and admin dashboard.
+C. Authorized MP4 upload and playback, Gemini multimodal analysis, structured verified events and Persian commentary text.
+D. Real TTS, timestamp scheduling, basic audio mixing.
+E. FFmpeg worker, shared HLS, Docker/Nginx VPS deployment and monitoring.
+F. Tests, build verification, security audit and documentation.
+Prioritize an end-to-end 10–15 minute recorded-video test before live HLS. Do not substitute decorative UI for core functions.
+
+FINAL REPORT
+State precisely: implemented features; partial/missing features; actual tests and build results; Gemini/TTS/FFmpeg integration status; shared HLS status; environment variables; deployment commands; limitations and next steps. Start writing and validating the real application now, not just a plan. Preserve working project state across iterations.
