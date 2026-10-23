@@ -221,4 +221,30 @@ export const api = {
     if (!res.ok) throw new Error('خطا در دریافت دستور FFmpeg');
     return res.json();
   },
+
+  async analyzeSample(params?: { videoPath?: string; startPts?: number; durationSeconds?: number }): Promise<any> {
+    const res = await fetch('/api/v1/admin/analyze-sample', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(params || {}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'خطا در تحلیل نمونه ویدیویی');
+    }
+    return res.json();
+  },
+
+  async renderMix(params?: { sourcePath?: string; outputFormat?: 'hls' | 'mp4'; duckingLevel?: number }): Promise<any> {
+    const res = await fetch('/api/v1/admin/render-mix', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(params || {}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'خطا در رندر همگام');
+    }
+    return res.json();
+  },
 };

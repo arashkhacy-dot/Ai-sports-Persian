@@ -6,6 +6,9 @@ import { AppDatabase } from './db/database.ts';
 import { BroadcastManager } from './services/broadcastManager.ts';
 import { SourceValidator } from './services/sourceValidator.ts';
 import { FFmpegWorkerService } from './services/ffmpegWorker.ts';
+import { MediaExtractorService } from './services/mediaExtractor.ts';
+import { OfflineRenderService } from './services/offlineRenderService.ts';
+import { PersianTTSProvider } from './services/ttsProvider.ts';
 import { Match, MediaSource, SystemMetrics } from './types.ts';
 
 const router = express.Router();
@@ -512,6 +515,79 @@ router.get('/admin/ffmpeg/command', adminAuth, (req: Request, res: Response) => 
     audioMode: 'ducking',
   });
   res.json({ command: cmd });
+});
+
+// Phase 3 Checkpoint C1: Multimodal Temporal Frame Analysis
+router.post('/admin/analyze-sample', adminAuth, async (req: Request, res: Response) => {
+  try {
+    let { videoPath, startPts = 0, durationSeconds = 10 } = req.body;
+
+    if (!videoPath) {
+      const sources = db.getMediaSources();
+      const firstMp4 = sources.find((s) => s.type === 'mp4_upload' || s.url.endsWith('.mp4'));
+      if (firstMp4) {
+        if (firstMp4.url.startsWith('/uploads/')) {
+          videoPath = path.resolve(process.cwd(), 'data', 'uploads', path.basename(firstMp4.url));
+        } else {
+          videoPath = firstMp4.url;
+        }
+      } else {
+        videoPath = path.resolve(process.cwd(), 'data', 'test_clip.mp4');
+      }
+    } else if (videoPath.startsWith('/uploads/')) {
+      videoPath = path.resolve(process.cwd(), 'data', 'uploads', path.basename(videoPath));
+    }
+
+    const extractor = MediaExtractorService.getInstance();
+    const result = await extractor.analyzeSampleJob({
+      videoPath,
+      startPts: Number(startPts),
+      durationSeconds: Number(durationSeconds),
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'خطا در تحلیل چندفریمی ویدیویی' });
+  }
+});
+
+// Phase 3 Checkpoint D1: Synchronized Timeline Audio Mix Render
+router.post('/admin/render-mix', adminAuth, async (req: Request, res: Response) => {
+  try {
+    let { sourcePath, commentarySegments, outputFormat = 'hls', duckingLevel = 0.35 } = req.body;
+
+    if (!sourcePath) {
+      const sources = db.getMediaSources();
+      const firstMp4 = sources.find((s) => s.type === 'mp4_upload' || s.url.endsWith('.mp4'));
+      if (firstMp4) {
+        if (firstMp4.url.startsWith('/uploads/')) {
+          sourcePath = path.resolve(process.cwd(), 'data', 'uploads', path.basename(firstMp4.url));
+        } else {
+          sourcePath = firstMp4.url;
+        }
+      } else {
+        sourcePath = path.resolve(process.cwd(), 'data', 'test_clip.mp4');
+      }
+    } else if (sourcePath.startsWith('/uploads/')) {
+      sourcePath = path.resolve(process.cwd(), 'data', 'uploads', path.basename(sourcePath));
+    }
+
+    if (!commentarySegments || !Array.isArray(commentarySegments) || commentarySegments.length === 0) {
+      commentarySegments = db.getCommentarySegments();
+    }
+
+    const renderService = OfflineRenderService.getInstance();
+    const result = await renderService.renderSynchronizedOutput({
+      sourcePath,
+      commentarySegments,
+      outputFormat: outputFormat === 'mp4' ? 'mp4' : 'hls',
+      duckingLevel: Number(duckingLevel),
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'خطا در رندر خروجی همگام' });
+  }
 });
 
 export default router;

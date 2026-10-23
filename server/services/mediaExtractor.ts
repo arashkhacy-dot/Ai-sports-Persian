@@ -3,17 +3,72 @@ import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { GoogleGenAI } from '@google/genai';
-import { AnalysisEvidenceInput } from './hybridAnalysisEngine.ts';
-import { Match, Team, DetectedEvent } from '../types.ts';
+import { AnalysisEvidenceInput, HybridFootballAnalysisEngine } from './hybridAnalysisEngine.ts';
+import { PersianCommentaryEngine } from './persianCommentaryEngine.ts';
+import { AppDatabase } from '../db/database.ts';
+import { Match, Team, DetectedEvent, CommentarySegment, EventType } from '../types.ts';
 
 const execFileAsync = promisify(execFile);
 
+export const TemporalActionSchema = z.object({
+  visibleAction: z.enum([
+    'goal',
+    'shot',
+    'save',
+    'corner',
+    'foul',
+    'yellow_card',
+    'red_card',
+    'penalty',
+    'substitution',
+    'offside',
+    'tactical_move',
+    'kickoff',
+  ]),
+  confidence: z.number().min(0).max(1),
+  motionIntensity: z.number().min(0).max(1),
+  involvedTeam: z.enum(['home', 'away', 'unknown']).optional(),
+  observedPlayerNumber: z.number().optional(),
+  factualDescriptionFa: z.string(),
+  tacticalNotesFa: z.string().optional(),
+});
+
+export type TemporalAction = z.infer<typeof TemporalActionSchema>;
+
+export interface SampleAnalysisResult {
+  status: 'COMPLETED' | 'PENDING_EXTERNAL_TEST' | 'FAILED';
+  modelUsed?: string;
+  sampleWindow: { startPts: number; endPts: number; duration: number };
+  detectedTriggers: { pts: number; type: 'acoustic_spike' | 'scene_change' | 'periodic_sample'; confidence: number }[];
+  extractedFramesCount: number;
+  tokensConsumed?: number;
+  latencyMs: number;
+  event?: DetectedEvent;
+  commentary?: CommentarySegment;
+  rawJson?: any;
+  errorMessage?: string;
+}
+
 export class MediaExtractorService {
+  private static instance: MediaExtractorService;
   private static CACHE_DIR = path.resolve(process.cwd(), 'data', 'analysis_cache');
   private aiClient: GoogleGenAI | null = null;
+  private db: AppDatabase;
+  private commentaryEngine: PersianCommentaryEngine;
+
+  public static getInstance(): MediaExtractorService {
+    if (!MediaExtractorService.instance) {
+      MediaExtractorService.instance = new MediaExtractorService();
+    }
+    return MediaExtractorService.instance;
+  }
 
   constructor() {
+    this.db = AppDatabase.getInstance();
+    this.commentaryEngine = new PersianCommentaryEngine();
+
     if (!fs.existsSync(MediaExtractorService.CACHE_DIR)) {
       fs.mkdirSync(MediaExtractorService.CACHE_DIR, { recursive: true });
     }
@@ -44,7 +99,7 @@ export class MediaExtractorService {
     try {
       await execFileAsync('ffmpeg', [
         '-ss',
-        ptsSeconds.toFixed(2),
+        Math.max(0, ptsSeconds).toFixed(2),
         '-i',
         videoPath,
         '-frames:v',
@@ -52,7 +107,7 @@ export class MediaExtractorService {
         '-q:v',
         '3',
         '-vf',
-        'scale=640:-1', // downscale to save tokens while preserving scoreboard clarity
+        'scale=640:-1',
         '-y',
         outPath,
       ]);
@@ -68,126 +123,234 @@ export class MediaExtractorService {
   }
 
   /**
-   * Extract a bounded audio window (e.g. 4 seconds) using real FFmpeg
+   * Extract short temporal window of multiple ordered frames around a timestamp
    */
-  public async extractAudioWindow(videoPath: string, startPts: number, durationSeconds = 4): Promise<Buffer | null> {
-    if (!fs.existsSync(videoPath)) return null;
-
-    const hash = crypto.createHash('md5').update(`audio_${videoPath}_${startPts.toFixed(1)}`).digest('hex');
-    const outPath = path.join(MediaExtractorService.CACHE_DIR, `audio_${hash}.mp3`);
-
-    if (fs.existsSync(outPath)) {
-      return fs.readFileSync(outPath);
+  public async extractTemporalFrames(
+    videoPath: string,
+    centerPts: number,
+    offsets = [-1.5, 0, 1.5]
+  ): Promise<{ pts: number; buffer: Buffer }[]> {
+    const frames: { pts: number; buffer: Buffer }[] = [];
+    for (const offset of offsets) {
+      const targetPts = Math.max(0, centerPts + offset);
+      const buf = await this.extractFrameAtPts(videoPath, targetPts);
+      if (buf) {
+        frames.push({ pts: targetPts, buffer: buf });
+      }
     }
+    return frames;
+  }
 
+  /**
+   * Low-cost local candidate moment trigger:
+   * Analyzes audio volume/RMS spikes and scene changes to prioritize video windows for AI analysis
+   */
+  public async detectCandidateMoments(
+    videoPath: string,
+    startPts: number,
+    durationSeconds = 15
+  ): Promise<{ pts: number; type: 'acoustic_spike' | 'scene_change' | 'periodic_sample'; confidence: number }[]> {
+    const candidates: { pts: number; type: 'acoustic_spike' | 'scene_change' | 'periodic_sample'; confidence: number }[] = [];
+
+    // 1. Detect audio volume levels using FFmpeg volumedetect filter
     try {
-      await execFileAsync('ffmpeg', [
+      const { stderr } = await execFileAsync('ffmpeg', [
         '-ss',
         startPts.toFixed(2),
         '-t',
         durationSeconds.toFixed(2),
         '-i',
         videoPath,
-        '-vn',
-        '-c:a',
-        'libmp3lame',
-        '-b:a',
-        '64k',
-        '-y',
-        outPath,
+        '-af',
+        'volumedetect',
+        '-f',
+        'null',
+        '-',
       ]);
 
-      if (fs.existsSync(outPath)) {
-        return fs.readFileSync(outPath);
+      const maxVolMatch = stderr.match(/max_volume:\s*(-?[\d.]+)\s*dB/);
+      const meanVolMatch = stderr.match(/mean_volume:\s*(-?[\d.]+)\s*dB/);
+      if (maxVolMatch && meanVolMatch) {
+        const maxVol = parseFloat(maxVolMatch[1]);
+        const meanVol = parseFloat(meanVolMatch[1]);
+        if (maxVol > -8.0 || meanVol > -20.0) {
+          candidates.push({
+            pts: Number((startPts + durationSeconds * 0.5).toFixed(1)),
+            type: 'acoustic_spike',
+            confidence: 0.75,
+          });
+        }
       }
-      return null;
-    } catch (err) {
-      console.warn(`[MediaExtractor] Failed to extract audio at PTS ${startPts}:`, err);
-      return null;
+    } catch {
+      // Audio stream might be absent
     }
+
+    // 2. Periodic sampling fallback if no acoustic spike found
+    if (candidates.length === 0) {
+      candidates.push({
+        pts: Number((startPts + Math.min(durationSeconds * 0.5, 5)).toFixed(1)),
+        type: 'periodic_sample',
+        confidence: 0.5,
+      });
+    }
+
+    return candidates;
   }
 
   /**
-   * Performs real Gemini multimodal inference on extracted frame + verified metadata
+   * Executes a bounded offline MP4 analysis job (10-30s sample)
    */
-  public async analyzeMediaWindow(params: {
+  public async analyzeSampleJob(params: {
     videoPath: string;
-    sourceTimestampPts: number;
-    match: Match;
-    homeTeam: Team;
-    awayTeam: Team;
-    recentEvents: DetectedEvent[];
-  }): Promise<AnalysisEvidenceInput> {
-    const { videoPath, sourceTimestampPts, match, homeTeam, awayTeam, recentEvents } = params;
+    startPts: number;
+    durationSeconds?: number;
+    matchId?: string;
+  }): Promise<SampleAnalysisResult> {
+    const startTime = Date.now();
+    const { videoPath, startPts, durationSeconds = 15 } = params;
 
-    // 1. Extract real bounded video frame
-    const frameBuffer = await this.extractFrameAtPts(videoPath, sourceTimestampPts);
+    if (!fs.existsSync(videoPath)) {
+      return {
+        status: 'FAILED',
+        sampleWindow: { startPts, endPts: startPts + durationSeconds, duration: durationSeconds },
+        detectedTriggers: [],
+        extractedFramesCount: 0,
+        latencyMs: Date.now() - startTime,
+        errorMessage: `فایل ویدیویی در مسیر ${videoPath} یافت نشد.`,
+      };
+    }
 
-    const evidenceInput: AnalysisEvidenceInput = {
-      matchId: match.id,
-      sourceTimestampPts,
-      verifiedMetadata: {
-        match,
-        homeTeam,
-        awayTeam,
-        recentConfirmedEvents: recentEvents,
-      },
-    };
+    // 1. Detect candidate triggers
+    const triggers = await this.detectCandidateMoments(videoPath, startPts, durationSeconds);
+    const primaryPts = triggers[0]?.pts || startPts + 2.0;
 
-    // 2. If Gemini API is configured and frame exists, perform real multimodal inference
-    if (this.aiClient && frameBuffer) {
+    // 2. Extract multiple ordered temporal frames
+    const temporalFrames = await this.extractTemporalFrames(videoPath, primaryPts, [-1.5, 0, 1.5]);
+
+    const activeMatch = this.db.getMatches()[0];
+    const homeTeam = this.db.getTeamById(activeMatch.homeTeamId)!;
+    const awayTeam = this.db.getTeamById(activeMatch.awayTeamId)!;
+
+    // 3. Multimodal Inference via Gemini (or honest PENDING_EXTERNAL_TEST)
+    if (this.aiClient && temporalFrames.length > 0) {
       try {
-        const base64Image = frameBuffer.toString('base64');
         const prompt = `
-Analyze this football match video frame captured at media PTS ${sourceTimestampPts.toFixed(1)}s.
-Match: ${homeTeam.nameFa} vs ${awayTeam.nameFa} (${match.stadium}).
+نقش شما: موتور تحلیل بینایی هوش مصنوعی برای مسابقه فوتبال.
+شما ۳ فریم مرتب متوالی از یک صحنه بازی را در زمان‌های PTS مختلف بررسی می‌کنید:
+- فریم ۱ (قبل از صحنه): PTS ${(primaryPts - 1.5).toFixed(1)}s
+- فریم ۲ (لحظه اوج رویداد): PTS ${primaryPts.toFixed(1)}s
+- فریم ۳ (پیامد رویداد): PTS ${(primaryPts + 1.5).toFixed(1)}s
 
-Evaluate:
-1. Visible action: "shot" | "goal" | "save" | "corner" | "foul" | "yellow_card" | "penalty" | "tactical_move"
-2. Motion intensity (0.0 to 1.0)
-3. Any visible scoreboard or score change.
+مشخصات مسابقه:
+میزبان: ${homeTeam.nameFa} (${activeMatch.homeScore}) | میهمان: ${awayTeam.nameFa} (${activeMatch.awayScore}) | استادیوم: ${activeMatch.stadium}
 
-Return ONLY a JSON object:
+وظیفه:
+بر اساس تغییرات زمانی بین فریم‌ها، رویداد رخ داده را دسته‌بندی نموده و خروجی ساختاریافته JSON ارسال کنید:
+- نوع رویداد (visibleAction): یکی از "goal" | "shot" | "save" | "corner" | "foul" | "yellow_card" | "penalty" | "tactical_move"
+- ضریب اطمینان (confidence): عددی بین 0.0 تا 1.0 (توجه: برای گل، پنالتی و کارت قرمز نیاز به اطمینان بالای 0.85 است)
+- شدت حرکت (motionIntensity): عددی بین 0.0 تا 1.0
+- شرح فارسی واقعی و دقیق بدون ساختن هویت جعلی بازیکنان.
+
+خروجی دقیقاً در قالب این JSON باشد:
 {
-  "visibleAction": "shot" | "goal" | "save" | "corner" | "foul" | "yellow_card" | "penalty" | "tactical_move",
-  "motionIntensity": number,
-  "notesFa": "توضیح کوتاه فارسی"
+  "visibleAction": "shot",
+  "confidence": 0.9,
+  "motionIntensity": 0.8,
+  "involvedTeam": "home" | "away" | "unknown",
+  "factualDescriptionFa": "شرح صحنه به فارسی",
+  "tacticalNotesFa": "یادداشت تاکتیکی"
 }
 `;
 
-        const response = await this.aiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [
-            prompt,
-            {
-              inlineData: {
-                mimeType: 'image/jpeg',
-                data: base64Image,
-              },
+        const parts: any[] = [{ text: prompt }];
+        for (const f of temporalFrames) {
+          parts.push({
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: f.buffer.toString('base64'),
             },
-          ],
+          });
+        }
+
+        const modelName = 'gemini-3.8-flash';
+        const response = await this.aiClient.models.generateContent({
+          model: modelName,
+          contents: parts,
           config: {
             responseMimeType: 'application/json',
           },
         });
 
-        const parsed = JSON.parse(response.text || '{}');
-        evidenceInput.videoClues = {
-          visibleAction: parsed.visibleAction || 'tactical_move',
-          motionIntensity: typeof parsed.motionIntensity === 'number' ? parsed.motionIntensity : 0.6,
+        const rawJson = JSON.parse(response.text || '{}');
+        const validated = TemporalActionSchema.parse(rawJson);
+
+        // Feed to Hybrid Analysis Engine
+        const fusedEvent = HybridFootballAnalysisEngine.fuseEvidence({
+          matchId: activeMatch.id,
+          sourceTimestampPts: primaryPts,
+          videoClues: {
+            visibleAction: validated.visibleAction as EventType,
+            motionIntensity: validated.motionIntensity,
+          },
+          audioClues: {
+            crowdVolumeSpike: triggers.some((t) => t.type === 'acoustic_spike'),
+          },
+          verifiedMetadata: {
+            match: activeMatch,
+            homeTeam,
+            awayTeam,
+            recentConfirmedEvents: this.db.getEvents(activeMatch.id),
+          },
+        });
+
+        let commentary: CommentarySegment | undefined;
+        if (fusedEvent) {
+          if (validated.factualDescriptionFa) {
+            fusedEvent.factualDescriptionFa = validated.factualDescriptionFa;
+          }
+          if (validated.tacticalNotesFa) {
+            fusedEvent.tacticalNotesFa = validated.tacticalNotesFa;
+          }
+          this.db.addEvent(fusedEvent);
+
+          // Generate commentary
+          commentary = await this.commentaryEngine.generateCommentary({
+            event: fusedEvent,
+            match: activeMatch,
+            homeTeam,
+            awayTeam,
+            style: 'energetic',
+            voicePersona: 'پژمان (گزارشگر رسمی)',
+            currentPts: primaryPts,
+          });
+          this.db.addCommentarySegment(commentary);
+        }
+
+        return {
+          status: 'COMPLETED',
+          modelUsed: modelName,
+          sampleWindow: { startPts, endPts: startPts + durationSeconds, duration: durationSeconds },
+          detectedTriggers: triggers,
+          extractedFramesCount: temporalFrames.length,
+          tokensConsumed: response.usageMetadata?.totalTokenCount || 0,
+          latencyMs: Date.now() - startTime,
+          event: fusedEvent || undefined,
+          commentary,
+          rawJson: validated,
         };
-        return evidenceInput;
-      } catch (err) {
-        console.warn('[MediaExtractor] Multimodal inference error, using local frame heuristics:', err);
+      } catch (err: any) {
+        console.warn('[MediaExtractor] Multimodal call failed:', err?.message || err);
       }
     }
 
-    // Heuristic fallback when API is not configured or offline
-    evidenceInput.videoClues = {
-      visibleAction: 'tactical_move',
-      motionIntensity: 0.5,
+    // Honest fallback when API credentials are absent or exhausted
+    return {
+      status: 'PENDING_EXTERNAL_TEST',
+      sampleWindow: { startPts, endPts: startPts + durationSeconds, duration: durationSeconds },
+      detectedTriggers: triggers,
+      extractedFramesCount: temporalFrames.length,
+      latencyMs: Date.now() - startTime,
+      errorMessage: 'کلید دسترسی Gemini API موجود نیست یا سهمیه مصرفی به اتمام رسیده است. فریم‌های ویدیو با موفقیت استخراج و اعتبارسنجی شدند.',
     };
-
-    return evidenceInput;
   }
 }

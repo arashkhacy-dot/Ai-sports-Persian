@@ -10,6 +10,7 @@ export interface MediaProbeResult {
   resolution?: string;
   videoCodec?: string;
   audioCodec?: string;
+  hasVideo: boolean;
   hasAudio: boolean;
   bitrate?: number;
 }
@@ -38,6 +39,10 @@ export class FFmpegWorkerService {
       FFmpegWorkerService.instance = new FFmpegWorkerService();
     }
     return FFmpegWorkerService.instance;
+  }
+
+  public static async probeMedia(filePath: string): Promise<MediaProbeResult | null> {
+    return FFmpegWorkerService.getInstance().probeMedia(filePath);
   }
 
   public ensureHlsDirectory(): void {
@@ -84,6 +89,7 @@ export class FFmpegWorkerService {
         resolution: vStream ? `${vStream.width}x${vStream.height}` : undefined,
         videoCodec: vStream?.codec_name,
         audioCodec: aStream?.codec_name,
+        hasVideo: !!vStream,
         hasAudio: !!aStream,
         bitrate: parseInt(data.format?.bit_rate || '0', 10),
       };

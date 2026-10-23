@@ -1,0 +1,73 @@
+PERSIAN AI SPORTSCASTER — PHASE 3: REAL END-TO-END INTEGRATION
+TARGET: Google AI Studio Build Mode, EXISTING project only.
+PRIORITY: Minimum token consumption, reliable implementation, honest tests.
+
+YOU MUST NOT REBUILD THE APP. Preserve the existing UI, database, routes and single-channel admin-only model. Work on the existing repository and inspect relevant files before edits. Do not repeatedly reread the entire repository. Do not create broad new frameworks or install heavy libraries without a proven need. Keep final response <= 15 lines. Document precise status in PROGRESS.md.
+
+CURRENT VERIFIED CODE PROBLEMS (from exported ZIP):
+1. broadcastManager.startBroadcast does not call MediaExtractorService or run automatic continuous event analysis. Existing commentary is loaded from DB and pre-synthesized, but real video events are not routed to the commentary engine.
+2. ffmpegWorker.startHlsWorker packages source audio into HLS; AI-generated speech is NOT mixed into the single shared HLS output.
+3. startTimelineTicker increments currentPts by 1 per wall-clock second and match.matchClock by 1. This is NOT authoritative source media PTS and drifts with stalls/seeks.
+4. Remote HLS sources are sent directly to viewers as passthrough, bypassing centralized audio processing. Do not claim they are server-processed.
+5. ttsProvider writes Gemini inline audio bytes directly into a .wav file without checking MIME/format or adding a WAV header for raw PCM. The hard-coded model name gemini-3.8-flash-lite-tts may not be valid. Discover/use a currently supported model ID from official SDK/documentation or configuration, do not silently invent IDs.
+6. Mock TTS fallback must NEVER be labeled real speech. Default production fallback is text-only/no AI speech, not synthetic beep.
+7. Previous tests mainly cover isolated logic, not full pipeline. Need actual integration test with real generated HLS segments and ffprobe verification.
+8. Check restart recovery, exclusive lock, FFmpeg process cleanup and health status. Do not claim operational state without playable media.
+
+RESEARCH REFERENCES — INSPECT ONLY IF NECESSARY, DO NOT CLONE WHOLE PROJECTS OR COPY LICENSED CODE BLINDLY:
+- https://github.com/zicojiao/worldcupvoice : frame sampling, match context, commentary pacing, session lifecycle. Do not add Agora dependency.
+- https://github.com/nerdpudding/nerdpudding : adaptive commentary cadence and local-model adapter ideas.
+- https://github.com/Priyankit07/Highlight-Studio : low-cost acoustic peak detection and candidate moment ranking.
+- https://github.com/martinjolif/football-game-tracking : future ball/player tracking, not required now.
+- https://github.com/AntoineBohin/soccer-ai-commentator : modular video-to-commentary architecture, not a dependency.
+Use these as design references only. Do not waste tokens researching them extensively.
+
+IMPLEMENT IN STRICT ORDER. STOP AFTER COMPLETING A CHECKPOINT IF RESOURCES ARE LIMITED.
+
+CHECKPOINT C1 — PROVE VIDEO + AI TEXT PIPELINE
+- Create one actual bounded offline MP4 analysis job (10-30 seconds first, later 2 minutes) using existing FFmpeg extraction service. Extract short temporal windows of multiple ordered frames with their true source timestamps, optionally small audio chunks if supported.
+- Connect extraction -> Gemini multimodal request -> Zod-validated events -> confidence gate -> Persian commentary engine -> DB. Avoid sending a single still as proof of temporal action recognition.
+- Add event candidate trigger: low-cost local RMS/crowd intensity and scene changes, plus sparse periodic sampling as backup. Do NOT classify a goal solely from crowd noise. Configurable cooldown, request budget and maximum concurrent calls=1. Event triggers only request closer inspection; verified facts require stronger evidence.
+- Ensure no invented scores/player identities. Treat original commentary ASR as optional evidence, not sole authority.
+- Add an admin button 'Analyze sample' with genuine progress/errors, not fake completion. Record sample timestamps, model name, token usage if available, latency, and JSON output.
+- If API quota unavailable, persist an honest PENDING_EXTERNAL_TEST status, and test schemas using fixtures without claiming Gemini success.
+
+CHECKPOINT C2 — REAL PERSIAN TTS
+- Verify available Gemini TTS model ID via official documentation or SDK model listing. Make model ID configurable in environment. Use documented API shapes.
+- Decode audio according to returned mimeType. For raw PCM, write correct RIFF/WAV header with matching sample rate/channels/bit depth; for actual WAV validate it. Run ffprobe on output.
+- Ensure Persian text can produce actual intelligible speech. Cache using content hash+voice+model, not only segment ID. Record true duration from ffprobe rather than estimated speech duration.
+- No false 'generated' status for mock output. If API unavailable, explicit TEXT_ONLY status and skip audio.
+
+CHECKPOINT D1 — PROVE ONE SYNCHRONIZED SHARED OUTPUT FROM RECORDED MP4
+- First implement an OFFLINE render job: given authorized MP4 + verified commentary segments + real WAV assets, use FFmpeg to mix voice with source audio (simple ducking/attenuation acceptable) at exact media timestamps and render a valid playable MP4 or HLS output. Do not attempt full live integration first.
+- Build audio timeline with adelay/atrim/amix or equivalent; enforce no overlaps, avoid clipping, use verified media PTS and ffprobe duration. Never rely on setInterval wall-clock PTS.
+- Validate with ffprobe: video stream present, audio stream present, duration close to source, and nonempty playable HLS segments when HLS selected.
+- Then expose the SAME rendered output to all viewers; no per-viewer AI, TTS or FFmpeg jobs.
+- If speech generation is unavailable, render video with original audio and clearly report no AI commentary; do not invent a successful voice mix.
+
+CHECKPOINT D2 — PREPARE FOR LIVE (ONLY IF C1, C2, D1 VERIFIED)
+- Architect a bounded delayed live pipeline with timestamped chunk queue and configurable target buffer. Ensure ingest/analysis/TTS/mux share the source PTS timeline.
+- Preserve single active channel, admin-only source selection, shared output. Remote authorized HLS must be ingested/processed server-side before labeling it as AI-broadcast; otherwise explicitly label source passthrough without AI audio.
+- If true live synchronization is too large for this run, document it as NEXT and STOP. Do not fake implementation.
+
+SECURITY AND DEPLOYMENT
+- Preserve Scrypt and existing auth. Check no default credentials in production, no leaked API key, safe uploads and URL redirects, admin routes protected.
+- Fix any Docker runtime errors found. Include a reproducible Ubuntu VPS smoke test in README using a small legally usable sample MP4, without requiring live rights-protected footage.
+- Never use copyrighted football streams without authorization, and never bypass DRM.
+- No need to implement automatic match discovery, GPU separation, multiple channels, new visual design or new frontend libraries in this phase.
+
+TESTING REQUIREMENTS
+- Run TypeScript typecheck, unit tests, production build.
+- Add a genuine FFmpeg offline integration test using generated synthetic video+tone (not copyrighted), verify with ffprobe; a real speech mixing test only if TTS credentials exist.
+- Add assertions that analysis is triggered once per job, not per viewer; correct media PTS; no fake WAV; missing Gemini credentials fail transparently; stop cleans workers.
+- Never claim a browser playback test or API call succeeded unless actually run.
+
+TOKEN-BUDGET DISCIPLINE
+- Do not output long explanations, repeated architecture diagrams, or code dumps in chat.
+- Prefer surgical changes; read only touched files, reuse existing functions and dependencies.
+- Avoid repeated expensive Gemini analysis during development: cache by content hash; use 10-30 second sample; maximum 1-2 external AI test calls per checkpoint unless a failure requires a targeted retry.
+- Stop when quota is low, do not thrash. Update PROGRESS.md after EACH checkpoint: DONE, TESTED, BLOCKED, NEXT, exact commands, costs/API calls if known.
+- Do not fabricate test results or force completion of all checkpoints in one run.
+- Final answer <=15 concise lines, listing actual checkpoints reached, files changed, test results, blockers, next exact step.
+
+START NOW: inspect the existing project, then implement C1 first. Keep all working prior features and the existing GitHub project history intact.
