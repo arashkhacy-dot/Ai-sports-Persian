@@ -9,7 +9,7 @@ export type BroadcastState =
   | 'STOPPING'
   | 'ERROR';
 
-export type CommentaryStyle = 'balanced' | 'energetic' | 'analytical';
+export type CommentaryStyle = 'balanced' | 'energetic' | 'analytical' | 'calm';
 export type AudioMode = 'ai_only' | 'ducking' | 'stadium_separated';
 
 export interface Administrator {

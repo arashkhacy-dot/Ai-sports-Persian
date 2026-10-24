@@ -4,7 +4,7 @@ import { Match, Team, Competition } from '../../types';
 
 interface OfflineNoticeProps {
   nextMatch?: {
-    match: Match;
+    match: { stadium: string; [key: string]: any };
     homeTeam?: Team;
     awayTeam?: Team;
     competition?: Competition;

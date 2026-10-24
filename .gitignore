@@ -6,3 +6,15 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Runtime media directories & generated caches
+data/uploads/*
+!data/uploads/.gitkeep
+data/rendered/*
+!data/rendered/.gitkeep
+data/tts_cache/*
+!data/tts_cache/.gitkeep
+data/*.mp4
+data/*.wav
+public/live/*
+!public/live/.gitkeep

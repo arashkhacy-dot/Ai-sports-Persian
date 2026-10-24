@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 import { AppDatabase } from './db/database.ts';
 import { BroadcastManager } from './services/broadcastManager.ts';
 import { SourceValidator } from './services/sourceValidator.ts';
@@ -91,6 +92,47 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
 /* ====================================================================
  * PUBLIC READ-ONLY ENDPOINTS (Never triggers AI or FFmpeg pipelines)
  * ==================================================================== */
+
+router.get('/health', (_req: Request, res: Response) => {
+  let ffmpegAvailable = false;
+  let ffprobeAvailable = false;
+  let ffmpegVersion = '';
+
+  try {
+    const out = execSync('ffmpeg -version', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    ffmpegAvailable = true;
+    ffmpegVersion = out.split('\n')[0] || 'installed';
+  } catch {}
+
+  try {
+    execSync('ffprobe -version', { stdio: ['ignore', 'pipe', 'ignore'] });
+    ffprobeAvailable = true;
+  } catch {}
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  const isConfigured = !!(apiKey && apiKey !== 'MY_GEMINI_API_KEY');
+  const mem = process.memoryUsage();
+
+  res.json({
+    status: ffmpegAvailable && ffprobeAvailable ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.round(process.uptime()),
+    mediaSubsystem: {
+      ffmpeg: ffmpegAvailable,
+      ffprobe: ffprobeAvailable,
+      version: ffmpegVersion,
+    },
+    aiSubsystem: {
+      gemini: isConfigured ? 'configured' : 'unconfigured',
+      model: 'gemini-3.8-flash',
+      ttsModel: process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts',
+    },
+    systemMetrics: {
+      memoryRssMb: Math.round(mem.rss / 1024 / 1024),
+      heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+    },
+  });
+});
 
 router.get('/public/channel', (_req: Request, res: Response) => {
   const broadcast = db.getActiveBroadcast();

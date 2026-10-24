@@ -227,9 +227,10 @@ export class MediaExtractorService {
     // 2. Extract multiple ordered temporal frames
     const temporalFrames = await this.extractTemporalFrames(videoPath, primaryPts, [-1.5, 0, 1.5]);
 
-    const activeMatch = this.db.getMatches()[0];
-    const homeTeam = this.db.getTeamById(activeMatch.homeTeamId)!;
-    const awayTeam = this.db.getTeamById(activeMatch.awayTeamId)!;
+    const matches = this.db.getMatches();
+    const activeMatch = params.matchId ? this.db.getMatchById(params.matchId) : (matches.length > 0 ? matches[0] : undefined);
+    const homeTeam = activeMatch ? this.db.getTeamById(activeMatch.homeTeamId) : undefined;
+    const awayTeam = activeMatch ? this.db.getTeamById(activeMatch.awayTeamId) : undefined;
 
     // 3. Multimodal Inference via Gemini (or honest PENDING_EXTERNAL_TEST)
     if (this.aiClient && temporalFrames.length > 0) {
@@ -242,7 +243,7 @@ export class MediaExtractorService {
 - فریم ۳ (پیامد رویداد): PTS ${(primaryPts + 1.5).toFixed(1)}s
 
 مشخصات مسابقه:
-میزبان: ${homeTeam.nameFa} (${activeMatch.homeScore}) | میهمان: ${awayTeam.nameFa} (${activeMatch.awayScore}) | استادیوم: ${activeMatch.stadium}
+میزبان: ${homeTeam?.nameFa || 'تیم میزبان'} (${activeMatch?.homeScore ?? 0}) | میهمان: ${awayTeam?.nameFa || 'تیم میهمان'} (${activeMatch?.awayScore ?? 0}) | استادیوم: ${activeMatch?.stadium || 'ورزشگاه'}
 
 وظیفه:
 بر اساس تغییرات زمانی بین فریم‌ها، رویداد رخ داده را دسته‌بندی نموده و خروجی ساختاریافته JSON ارسال کنید:
@@ -294,8 +295,9 @@ export class MediaExtractorService {
         const validated = TemporalActionSchema.parse(rawJson);
 
         // Feed to Hybrid Analysis Engine
+        const matchId = activeMatch ? activeMatch.id : 'match_sample';
         const fusedEvent = HybridFootballAnalysisEngine.fuseEvidence({
-          matchId: activeMatch.id,
+          matchId,
           sourceTimestampPts: primaryPts,
           videoClues: {
             visibleAction: validated.visibleAction as EventType,
@@ -305,10 +307,39 @@ export class MediaExtractorService {
             crowdVolumeSpike: triggers.some((t) => t.type === 'acoustic_spike'),
           },
           verifiedMetadata: {
-            match: activeMatch,
-            homeTeam,
-            awayTeam,
-            recentConfirmedEvents: this.db.getEvents(activeMatch.id),
+            match: activeMatch || {
+              id: matchId,
+              competitionId: 'comp_sample',
+              homeTeamId: 't_home',
+              awayTeamId: 't_away',
+              homeScore: 0,
+              awayScore: 0,
+              matchClock: 0,
+              period: 'first_half',
+              stadium: 'ورزشگاه',
+              referee: 'داور',
+              scheduledAt: new Date().toISOString(),
+              isLive: false,
+            },
+            homeTeam: homeTeam || {
+              id: 't_home',
+              nameFa: 'میزبان',
+              nameEn: 'Home',
+              shortCode: 'HOM',
+              primaryColor: '#e11d48',
+              secondaryColor: '#fff',
+              roster: [],
+            },
+            awayTeam: awayTeam || {
+              id: 't_away',
+              nameFa: 'میهمان',
+              nameEn: 'Away',
+              shortCode: 'AWY',
+              primaryColor: '#2563eb',
+              secondaryColor: '#fff',
+              roster: [],
+            },
+            recentConfirmedEvents: activeMatch ? this.db.getEvents(activeMatch.id) : [],
           },
         });
 
@@ -322,17 +353,18 @@ export class MediaExtractorService {
           }
           this.db.addEvent(fusedEvent);
 
-          // Generate commentary
-          commentary = await this.commentaryEngine.generateCommentary({
-            event: fusedEvent,
-            match: activeMatch,
-            homeTeam,
-            awayTeam,
-            style: 'energetic',
-            voicePersona: 'پژمان (گزارشگر رسمی)',
-            currentPts: primaryPts,
-          });
-          this.db.addCommentarySegment(commentary);
+          if (activeMatch && homeTeam && awayTeam) {
+            commentary = await this.commentaryEngine.generateCommentary({
+              event: fusedEvent,
+              match: activeMatch,
+              homeTeam,
+              awayTeam,
+              style: 'energetic',
+              voicePersona: 'پژمان (گزارشگر رسمی)',
+              currentPts: primaryPts,
+            });
+            this.db.addCommentarySegment(commentary);
+          }
         }
 
         return {

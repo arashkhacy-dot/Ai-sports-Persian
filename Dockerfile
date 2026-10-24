@@ -33,7 +33,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 
 # Persistent storage directories
-RUN mkdir -p /app/data/uploads /app/data/tts_cache /app/public/live
+RUN mkdir -p /app/data/uploads /app/data/rendered /app/data/tts_cache /app/public/live
 
 EXPOSE 8080
 

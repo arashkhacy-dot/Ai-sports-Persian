@@ -8,16 +8,23 @@ services:
     container_name: persian_ai_sportscaster
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # Bind to localhost by default for reverse-proxy security (Nginx with HTTPS)
+      - "${BIND_IP:-127.0.0.1}:8080:8080"
     environment:
       - NODE_ENV=production
       - PORT=8080
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_TTS_MODEL=${GEMINI_TTS_MODEL:-gemini-2.5-flash-preview-tts}
     volumes:
       - ./data:/app/data
       - ./hls_live:/app/public/live
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/public/channel"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"

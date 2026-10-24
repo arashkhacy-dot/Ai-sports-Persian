@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SourceValidator } from '../server/services/sourceValidator.ts';
 import { HybridFootballAnalysisEngine } from '../server/services/hybridAnalysisEngine.ts';
 import { AudioMixerService } from '../server/services/audioMixer.ts';
-import { CommentarySegment } from '../server/types.ts';
+import { CommentarySegment, DetectedEvent } from '../server/types.ts';
 
 test('SourceValidator: blocks SSRF targets and dangerous hostnames', () => {
   const localRes = SourceValidator.validateSourceUrl('http://127.0.0.1/stream.m3u8');
@@ -81,7 +81,7 @@ test('HybridFootballAnalysisEngine: fuses evidence and deduplicates repeated eve
       secondaryColor: '#fff',
       roster: [{ number: 19, nameFa: 'بلانکو', position: 'مهاجم' }],
     },
-    recentConfirmedEvents: [],
+    recentConfirmedEvents: [] as DetectedEvent[],
   };
 
   const event1 = HybridFootballAnalysisEngine.fuseEvidence({

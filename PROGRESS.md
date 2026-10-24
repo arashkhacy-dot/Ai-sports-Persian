@@ -1,71 +1,65 @@
 # وضعیت پیشرفت پروژه گزارشگر هوشمند فوتبال فارسی (PROGRESS.md)
 
-تاریخ آخرین بازبینی: ۲۴ اکتبر ۲۰۲۶
+تاریخ آخرین بازبینی: ۲۴ اکتبر ۲۰۲۶  
+وضعیت نسخه: **Release Candidate (v4) - Hardened & Ready for VPS Smoke Test**
 
 ---
 
-## ۱. موارد تکمیل شده (Completed)
+## ۱. موارد تکمیل و سخت‌سازی شده در نسخه کاندید انتشار (Release Candidate Hardening)
 
-- **امنیت احراز هویت و اعتبارسنجی مسیرها (Checkpoint A & Path Security)**:
-  - جایگزینی الگوریتم ضعیف با **Salted Scrypt** و مقایسه امن در برابر حملات زمانی (`crypto.timingSafeEqual`).
-  - جایگزینی توکن‌ها با **توکن‌های ۲۵۶ بیتی امن کریپتوگرافی** (`crypto.randomBytes(32)`).
-  - محدودسازی نرخ ورود (Rate Limiting) با قفل ۱۵ دقیقه‌ای پس از ۵ تلاش ناموفق.
-  - اعتبارسنجی امن مسیرهای چندرسانه‌ای محلی (`SourceValidator.validateLocalMediaPath`) برای مقابله قطعی با حملات Directory Traversal و مسدودسازی فایل‌های خارج از دایرکتوری داده.
-- **شفافیت خروجی و حذف داده‌های ساختگی (Honest Output & Telemetry)**:
-  - عدم انتشار مانیفست‌های فیک؛ سرویس استریم HLS تنها در صورت تولید فیزیکی سگمنت‌های معتبر روی دیسک.
-  - جایگزینی متریک‌های تصادفی با دلتای واقعی `process.cpuUsage()` و حافظه `process.memoryUsage()`.
-- **استخراج فریم‌ها و تحلیل چندوجهی (Checkpoint C1 - Video & Vision)**:
-  - سرویس `MediaExtractorService` برای استخراج ۳ فریم متوالی مرتب زمانی (`[-1.5, 0, +1.5]` ثانیه) در زمان برچسب زمانی PTS با FFmpeg واقعی.
-  - فیلتر تشخیصی رویدادهای صوتی (قله‌های حجمی RMS استادیوم) و تغییر صحنه برای انتخاب فریم با کمترین هزینه توکن.
-  - اعتبارسنجی خروجی ساختاریافته بینایی مدل چندوجهی با `TemporalActionSchema` مبتنی بر Zod.
-- **سنتز صدای فارسی گزارشگر (Checkpoint C2 - Real Persian TTS)**:
-  - پیاده‌سازی `PersianTTSProvider` با مدل رسمی و قابل پیکربندی (`process.env.GEMINI_TTS_MODEL`).
-  - تولید فایل استاندارد RIFF/WAV (۲۴ کیلوهرتز، ۱۶ بیت مونو با هدر ۴۴ بایتی برای داده‌های خام PCM).
-  - اندازه‌گیری دقیق و واقعی طول صوت با `ffprobe`.
-  - کش‌گذاری بر اساس هش محتوا (`sha256(text_voice_model)`) و وضعیت صادقانه `TEXT_ONLY` در صورت اتمام سهمیه یا نبود کلید.
-- **رندر همگام صوتی و تصویری (Checkpoint D1 - Synchronized Audio Render)**:
-  - پیاده‌سازی `OfflineRenderService` جهت میکس صدای پس‌زمینه ویدیو با قطعات صوتی گزارشگر در زمان دقیق PTS با استفاده از فیلترهای `adelay` و `amix`.
-  - اعمال خودکار داکینگ (کاهش صدای محیط استادیوم هنگام صحبت گزارشگر).
-  - اعتبارسنجی خروجی تولید شده به کمک `ffprobe` (تأیید حضور همزمان استریم تصویر و صدا و تطابق مدت زمان).
-- **فرآیند یکپارچه پایانه‌به‌پایانه ادمین (Checkpoint D1/D2 - Bounded Pipeline Job)**:
-  - پیاده‌سازی `PipelineCoordinatorService` و اندپوینت ادمین `POST /api/v1/admin/pipeline/run-sample-job`.
-  - اتصال تمام مراحل: اعتبارسنجی مسیر ← استخراج چندفریمی و تحلیل رویداد ← تولید گزارش فارسی ← سنتز صدا (TTS) ← رندر میکس همگام FFmpeg در قالب یک جاب واحد و ایمن با تایم‌اوت‌های غیرمسدودکننده.
-- **داشبورد کنترل ادمین (Admin HUD)**:
-  - افزودن کارت‌های تست مستقل تحلیل فریم، رندر میکس صوتی، و دکمه اجرای فرآیند یکپارچه با گزارش زمان تأخیر و خروجی ساختاریافته در `AnalysisMonitor.tsx`.
-
----
-
-## ۲. آزمون‌های اجرا شده در عمل (Tests Actually Run)
-
-1. **تست‌های منطق و امنیت (`node --import tsx --test tests/logic.test.ts`)**:
-   - ۷ آزمون موفق (SSRF، اعتبارسنجی استریم عمومی، جلوگیری از Directory Traversal، فیوژن هیبریدی، زمان‌بندی صوتی بدون تداخل، هش Scrypt، استخراج فریم و مشخصات ویدیو با FFprobe).
-2. **تست‌های خط لوله یکپارچه (`NODE_ENV=test node --import tsx --test tests/pipeline.test.ts`)**:
-   - ۴ آزمون موفق:
-     - `MediaExtractorService: detects triggers and extracts temporal frames` (استخراج موفق ۳ فریم متوالی JPEG با بایت‌های جادویی ffd8).
-     - `PersianTTSProvider: RIFF header synthesis and ffprobe duration` (سنتز هدر RIFF و اندازه‌گیری دقیق با ffprobe).
-     - `OfflineRenderService: performs synchronized audio mixing with PTS delay and ducking` (رندر موفق و تأیید استریم‌های ویدیو و صوت).
-     - `PipelineCoordinatorService: runs bounded end-to-end job on local test clip` (اجرای موفق کل خط لوله از تحلیل تا میکس نهایی).
-3. **کامپایل و بیلد پروداکشن (`npm run build`)**:
-   - بیلد کلاینت Vite و باندل سرور با esbuild با موفقیت و بدون خطا انجام شد.
+- **حذف قطعی داده‌های جعلی و پایبندی به صداقت داده‌ها (P0.A Honesty Gate)**:
+  - حذف کامل بلوک فال‌بک شوت ساختگی (`shot` با اطمینان 0.9 و توضیحات تخیلی) در `PipelineCoordinatorService`.
+  - در صورت نبود رویداد در بازه زمانی، وضعیت شفاف `NO_EVENT` بدون درج هرگونه رویداد در پایگاه داده بازگردانده می‌شود.
+- **اعتبارسنجی استریم صدا و شفافیت وضعیت گزارش (P0.B Audio Verification)**:
+  - لزوم تایید فایل صوتی و استریم با `ffprobe` قبل از گزارش `SUCCESS_WITH_AUDIO`.
+  - در صورت عدم سنتز یا نبود کلید، وضعیت به عنوان `TTS_UNAVAILABLE` یا `PARTIAL` گزارش شده و هرگز موفقیت صوتی کاذب اعلام نمی‌شود.
+- **قفل همزمانی ادمین و یکتایی رکوردها (P0.C Concurrency & Idempotency)**:
+  - پیاده‌سازی Mutex Lock در `PipelineCoordinatorService` جهت جلوگیری از تداخل جاب‌های سنگین ادمین با آزادسازی تضمین‌شده در `finally`.
+  - برطرف‌سازی باگ درج تکراری قطعات گزارش در دیتابیس (`addCommentarySegment`).
+- **مدیریت خطای تیم‌ها و مسابقه فعال (P0.D Active Match Safety)**:
+  - عدم کرش سامانه در صورت خالی بودن جدول مسابقات یا تیم‌ها با مقداردهی ایمن و مقادیر پشتیبان.
+- **همگام‌سازی زمانی گزارش نسبت به ابتدای کلیپ (P0.E Offset Clamping)**:
+  - محاسبه افست زمانی PTS نسبت به مبدأ کلیپ (`Math.max(0, eventPts - startPts)`) و محدودسازی به سقف مدت زمان ویدیو.
+- **تحویل امن فایل‌های رندر شده با پشتیبانی از HTTP Range (P1.F Media Delivery)**:
+  - اندپوینت اختصاصی و امن `/rendered/:filename` با اعتبارسنجی Canonical Realpath جهت مسدودسازی کامل Path Traversal.
+  - پشتیبانی کامل از هدر Range (کد وضعیت ۲۰۶ Partial Content) برای قابلیت Seek و پخش روان در تمام مرورگرها.
+- **مدیریت ویدیوهای فاقد صدا و داکینگ هوشمند استادیوم (P1.G Offline Render Hardening)**:
+  - بررسی هوشمند حضور استریم صدا با FFprobe.
+  - در صورت نبود استریم صدا در منبع، تزریق خودکار منبع سکوت (`anullsrc`) برای تولید MP4 معتبر و استاندارد.
+  - اعمال داکینگ فقط در بازه‌های زمانی ادای جملات گزارشگر (`between(t,start,end)` volume filter)، حفظ کامل صدای استادیوم در مابقی ثانیه‌ها و افزودن فلگ `+faststart` برای استریم سریع.
+- **اندپوینت سلامت تفکیک‌شده (P2.M Health Subsystem)**:
+  - اندپوینت `/api/v1/health` با گزارش تفکیکی وضعیت FFmpeg، FFprobe، و تفکیک حالت `configured` از `unconfigured` برای Gemini API بدون ساخت معیارهای ساختگی.
+- **اسناد استقرار و بنچمارک اوبونتو (P4 Documentation)**:
+  - نگارش راهنمای عملیاتی و گام‌به‌گام استقرار در `docs/VPS_INSTALL_UBUNTU.md`.
+  - نگارش تحلیل تخصصی مقایسه سرور انگلیس و ایران و بررسی شتاب‌دهنده گرافیکی در `docs/VPS_SIZING_BENCHMARK.md`.
+  - ایجاد ماتریس جامع دروازه‌های انتشار در `RELEASE_GATE.md`.
 
 ---
 
-## ۳. وضعیت بخش‌های مختلف
+## ۲. نتایج آزمون‌های واقعی اجرا شده (Verified Tests)
 
-| بخش | وضعیت واقعی | توضیحات |
-|---|---|---|
-| پایگاه داده و امنیت | عملیاتی | Scrypt + سشن کریپتوگرافی + جلوگیری از Brute Force و Traversal |
-| سوپروایزر FFmpeg | عملیاتی | استخراج فریم PTS، تشخیص مشخصات با ffprobe و نظارت بر پروسس |
-| توزیع HLS و رندر صوتی | عملیاتی | میکس صوتی با adelay/amix و داکینگ، عدم سرو استریم تا تولید سگمنت واقعی |
-| مدل Gemini (متن/تحلیل) | عملیاتی | مدل `gemini-3.8-flash` با اعتبارسنجی Zod و فال‌بک شفاف در صورت انقضای سهمیه |
-| مدل Gemini TTS | عملیاتی | تولید فایل معتبر WAV با هدر RIFF، کش هش محتوا و اعتبارسنجی ffprobe |
-| جاب یکپارچه خط لوله | عملیاتی | اتصال پیوسته تحلیل فریم، گزارش، سنتز صدا و رندر در یک عملیات ادمین |
-| استقرار داکر / سرور لینوکس | آماده | `Dockerfile` بهینه‌شده جهت اجرا با node بدون وابستگی tsx |
+1. **تست‌های منطق و امنیت (`NODE_ENV=test node --import tsx --test tests/logic.test.ts`)**:
+   - **۷ آزمون از ۷ آزمون موفق (100% PASS)**: مسدودسازی SSRF، استریم مجاز، جلوگیری از Traversal، فیوژن شواهد، زمان‌بندی بدون تداخل، امنیت Scrypt و استخراج فریم FFmpeg.
+2. **تست‌های یکپارچگی خط لوله رسانه (`NODE_ENV=test node --import tsx --test tests/pipeline.test.ts`)**:
+   - **۸ آزمون از ۸ آزمون موفق (100% PASS)**:
+     - `MediaExtractorService detects triggers and extracts temporal frames`
+     - `PersianTTSProvider RIFF header synthesis and ffprobe duration`
+     - `OfflineRenderService mixes audio with timed ducking and PTS delay`
+     - `OfflineRenderService handles source video with NO audio stream (P1.G)`
+     - `P0.A Honesty Gate: Quiet clip does NOT fabricate a fake shot or goal event`
+     - `P0.C Concurrency Gate: Simultaneous job requests are cleanly rejected by mutex`
+     - `P1.F & HTTP Range Gate: /rendered/:filename serves MP4 with Range 206 and blocks traversal`
+     - `P2.M Health Gate: /api/v1/health returns verified subsystem metrics`
+3. **اعتبارسنجی نوع‌ها و کامپایل (`npm run lint`)**:
+   - **۰ خطا**: `tsc --noEmit` بدون هیچ‌گونه خطای تایپ اسکریپت با موفقیت خاتمه یافت.
+4. **بیلد پروداکشن کلاینت و باندل سرور (`npm run build`)**:
+   - موفق در کمتر از ۱ ثانیه (`dist/server.js` با حجم ۱۳۳ کیلوبایت).
+5. **اجرای سرور در محیط پروداکشن (`dist/server.js`)**:
+   - تایید سلامت استارت، بررسی پیش‌نیازها و پاسخگویی به `/api/v1/health`.
 
 ---
 
-## ۴. گام بعدی برای فاز آینده (Next Action)
+## ۳. موارد ارزیابی‌نشده / موکول‌شده به فاز آینده (Deferred & Unverified)
 
-- راه‌اندازی فرآیند کارهای بلندمدت صف‌بندی‌شده (Worker Queue) برای فایل‌های مسابقه کامل ۹۰ دقیقه‌ای.
-- بهینه‌سازی الگوریتم‌های تفکیک صدای محیط با شتاب‌دهنده سخت‌افزاری در سرورهای مجهز به GPU.
-
+- **پخش زنده پیوسته ۹۰ دقیقه‌ای مسابقه**: طبق محدوده پرامپت فاز ۳ و کاندید انتشار، تمرکز بر پایداری پردازش جاب‌های نمونه ۲۰ تا ۶۰ ثانیه‌ای است و پخش پیوسته ۹۰ دقیقه‌ای در فازهای آتی ارزیابی خواهد شد.
+- **تفکیک وکال استادیوم با شتاب‌دهنده محلی (GPU Demucs)**: موکول به سرورهای مجهز به کارت گرافیک.
