@@ -247,4 +247,25 @@ export const api = {
     }
     return res.json();
   },
+
+  async runPipelineSampleJob(params?: {
+    videoPath?: string;
+    startPts?: number;
+    durationSeconds?: number;
+    commentaryStyle?: string;
+    voicePersona?: string;
+    duckingLevel?: number;
+    outputFormat?: 'hls' | 'mp4';
+  }): Promise<any> {
+    const res = await fetch('/api/v1/admin/pipeline/run-sample-job', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(params || {}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'خطا در اجرای فرآیند یکپارچه خط لوله');
+    }
+    return res.json();
+  },
 };

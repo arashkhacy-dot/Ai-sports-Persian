@@ -63,13 +63,22 @@ export class PersianCommentaryEngine {
 }
 `;
 
-        const response = await this.aiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-          },
+        const timeoutMs = process.env.NODE_ENV === 'test' ? 1000 : 5000;
+        let timer: NodeJS.Timeout;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`AI commentary timeout (${timeoutMs}ms)`)), timeoutMs);
+          timer.unref();
         });
+        const response = await Promise.race([
+          this.aiClient.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+            },
+          }),
+          timeoutPromise,
+        ]).finally(() => clearTimeout(timer));
 
         this.lastLatencyMs = Date.now() - startTime;
         if (response.usageMetadata?.totalTokenCount) {

@@ -31,6 +31,28 @@ export const AnalysisMonitor: React.FC<AnalysisMonitorProps> = ({
   const [mixResult, setMixResult] = useState<any>(null);
   const [mixError, setMixError] = useState<string | null>(null);
 
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineResult, setPipelineResult] = useState<any>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+
+  const handleRunFullPipeline = async () => {
+    setPipelineLoading(true);
+    setPipelineError(null);
+    try {
+      const res = await api.runPipelineSampleJob({
+        startPts: parseFloat(samplePts) || 0,
+        durationSeconds: parseFloat(sampleDuration) || 10,
+        outputFormat: 'mp4',
+        duckingLevel: 0.35,
+      });
+      setPipelineResult(res);
+    } catch (err: any) {
+      setPipelineError(err.message || 'خطا در اجرای فرآیند یکپارچه خط لوله');
+    } finally {
+      setPipelineLoading(false);
+    }
+  };
+
   const handleRunSampleAnalysis = async () => {
     setSampleLoading(true);
     setSampleError(null);
@@ -371,6 +393,90 @@ export const AnalysisMonitor: React.FC<AnalysisMonitorProps> = ({
             <span>{mixLoading ? 'در حال اجرای میکس صوتی و رندر...' : 'اجرای تست میکس صوتی و تولید HLS'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Checkpoint D1/D2: Bounded End-to-End Pipeline Job Card */}
+      <div className="p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-emerald-900/50 rounded-2xl">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <h4 className="text-xs font-bold text-white">
+              اجرای فرآیند یکپارچه خط لوله (تحلیل نمونه ← گزارش فارسی ← سنتز صدا ← رندر همگام FFmpeg)
+            </h4>
+          </div>
+          <button
+            onClick={handleRunFullPipeline}
+            disabled={pipelineLoading}
+            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-950/50"
+          >
+            <Play className="w-3.5 h-3.5 fill-white" />
+            <span>{pipelineLoading ? 'در حال پردازش خط لوله کامل...' : 'اجرای فرآیند یکپارچه'}</span>
+          </button>
+        </div>
+
+        <p className="text-[11px] text-slate-400 mb-3 leading-relaxed">
+          این عملیات در قالب یک جاب ادمین مستقل، فریم‌ها را استخراج کرده، با شواهد چندوجهی رویداد را شناسایی می‌کند، گزارش تخصصی فارسی تولید نموده، فایل صوتی WAV معتبر با هدر RIFF می‌سازد و سپس با FFmpeg adelay و amix داکینگ را با زمان‌بندی PTS ویدیو ادغام می‌کند.
+        </p>
+
+        {pipelineError && (
+          <div className="text-[11px] text-rose-400 bg-rose-950/40 border border-rose-900/40 p-2.5 rounded-xl mb-3">
+            {pipelineError}
+          </div>
+        )}
+
+        {pipelineResult && (
+          <div className="text-[11px] bg-slate-950/80 border border-slate-800 p-3 rounded-xl space-y-2 font-sans">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">وضعیت کلی فرآیند یکپارچه:</span>
+              <span className={`font-bold ${pipelineResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {pipelineResult.success ? 'تکمیل موفق خط لوله کامل (COMPLETED)' : 'خطا در اجرای فرآیند'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-2 border-t border-slate-800 text-[10px]">
+              <div className="bg-slate-900/80 p-2 rounded-lg">
+                <span className="text-slate-500 block">۱. استخراج و تحلیل</span>
+                <span className="text-white font-mono font-bold">
+                  {toPersianDigits(pipelineResult.analysis?.extractedFramesCount || 0)} فریم | {pipelineResult.analysis?.status}
+                </span>
+              </div>
+              <div className="bg-slate-900/80 p-2 rounded-lg">
+                <span className="text-slate-500 block">۲. رویداد شناسایی شده</span>
+                <span className="text-white font-bold">
+                  {pipelineResult.event?.type} ({toPersianDigits((pipelineResult.event?.confidence || 0) * 100)}٪)
+                </span>
+              </div>
+              <div className="bg-slate-900/80 p-2 rounded-lg">
+                <span className="text-slate-500 block">۳. سنتز صدا (TTS)</span>
+                <span className="text-white font-mono font-bold">
+                  {toPersianDigits((pipelineResult.tts?.durationSeconds || 0).toFixed(1))}s | {pipelineResult.tts?.provider}
+                </span>
+              </div>
+              <div className="bg-slate-900/80 p-2 rounded-lg">
+                <span className="text-slate-500 block">۴. رندر همگام</span>
+                <span className="text-white font-mono font-bold">
+                  {pipelineResult.render?.probeResult?.durationSeconds ? `${toPersianDigits(pipelineResult.render.probeResult.durationSeconds.toFixed(1))}s` : 'آماده'}
+                </span>
+              </div>
+            </div>
+
+            {pipelineResult.commentary && (
+              <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-300">
+                <span className="text-emerald-400 font-bold block mb-0.5">گزارش تولید شده:</span>
+                <p className="bg-slate-900/60 p-2 rounded-lg text-white font-medium leading-relaxed">
+                  «{pipelineResult.commentary.persianText}»
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+              <span>زمان کل پردازش خط لوله: {toPersianDigits(pipelineResult.totalLatencyMs || 0)} میلی‌ثانیه</span>
+              {pipelineResult.render?.outputPath && (
+                <span className="font-mono text-slate-500 truncate max-w-xs">{pipelineResult.render.outputPath}</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Verified Events List */}

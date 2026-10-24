@@ -30,6 +30,23 @@ test('SourceValidator: allows valid public streams', () => {
   assert.equal(mp4Res.isStream, false);
 });
 
+test('SourceValidator: validates local media paths and blocks traversal attacks', () => {
+  const traversal = SourceValidator.validateLocalMediaPath('../../etc/shadow');
+  assert.equal(traversal.isValid, false);
+  assert.match(traversal.error || '', /مسیرهای خارج|مسدود/);
+
+  const nonMedia = SourceValidator.validateLocalMediaPath('data/script.sh');
+  assert.equal(nonMedia.isValid, false);
+  assert.match(nonMedia.error || '', /پسوند|چندرسانه‌ای/);
+
+  const validDataPath = SourceValidator.validateLocalMediaPath('data/test_clip.mp4');
+  assert.equal(validDataPath.isValid, true);
+  assert.ok(validDataPath.sanitizedPath?.endsWith('data/test_clip.mp4'));
+
+  const validTmpPath = SourceValidator.validateLocalMediaPath('/tmp/sample.mp4');
+  assert.equal(validTmpPath.isValid, true);
+});
+
 test('HybridFootballAnalysisEngine: fuses evidence and deduplicates repeated events', () => {
   const mockMeta = {
     match: {

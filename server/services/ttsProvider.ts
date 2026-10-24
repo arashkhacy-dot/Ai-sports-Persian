@@ -84,20 +84,29 @@ export class PersianTTSProvider implements TTSProvider {
       try {
         console.log(`[TTS] Requesting speech synthesis via ${this.ttsModelName} for: "${segment.persianText.substring(0, 30)}..."`);
 
-        const response = await this.aiClient.models.generateContent({
-          model: this.ttsModelName,
-          contents: segment.persianText,
-          config: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: {
-                  voiceName: 'Puck',
+        const timeoutMs = process.env.NODE_ENV === 'test' ? 1000 : 5000;
+        let timer: NodeJS.Timeout;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`TTS synthesis timeout (${timeoutMs}ms)`)), timeoutMs);
+          timer.unref();
+        });
+        const response = await Promise.race([
+          this.aiClient.models.generateContent({
+            model: this.ttsModelName,
+            contents: segment.persianText,
+            config: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: 'Puck',
+                  },
                 },
               },
             },
-          },
-        });
+          }),
+          timeoutPromise,
+        ]).finally(() => clearTimeout(timer));
 
         const part = response.candidates?.[0]?.content?.parts?.[0];
         if (part?.inlineData?.data) {

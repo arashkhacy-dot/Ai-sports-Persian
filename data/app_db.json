@@ -241,6 +241,69 @@
       "factualDescriptionFa": "شوت به سمت دروازه توسط مهدی ترابی تیم پرسپولیس تهران",
       "tacticalNotesFa": "",
       "createdAt": "2026-10-23T15:31:44.200Z"
+    },
+    {
+      "id": "evt_1792833049773_tfjo",
+      "matchId": "match_tehran_derby_104",
+      "sourceTimestampPts": 2.5,
+      "type": "tactical_move",
+      "confidence": 0.7,
+      "evidenceSources": [
+        "video_frames",
+        "verified_metadata"
+      ],
+      "verificationStatus": "verified",
+      "factualDescriptionFa": "تصاویر دریافتی فاقد جریان مسابقه فوتبال بوده و الگوی آزمایشی پخش تلویزیونی (کالربار) را همراه با شمارنده عددی نشان می‌دهند.",
+      "tacticalNotesFa": "به دلیل قطع سیگنال و نمایش پترن تست تصویر، امکان تحلیل رویداد و بررسی موقعیت تاکتیکی مسابقه وجود ندارد.",
+      "createdAt": "2026-10-24T09:10:49.773Z"
+    },
+    {
+      "id": "evt_1792833146117",
+      "matchId": "match_tehran_derby_104",
+      "sourceTimestampPts": 1.5,
+      "type": "shot",
+      "confidence": 0.9,
+      "evidenceSources": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "verificationStatus": "verified",
+      "factualDescriptionFa": "شوت هدفمند مهاجم به سمت چارچوب دروازه حریف",
+      "tacticalNotesFa": "استفاده هوشمندانه از فضای پشت مدافعان و چرخش سریع",
+      "createdAt": "2026-10-24T09:12:26.117Z"
+    },
+    {
+      "id": "evt_1792833247865",
+      "matchId": "match_tehran_derby_104",
+      "sourceTimestampPts": 1.5,
+      "type": "shot",
+      "confidence": 0.9,
+      "evidenceSources": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "verificationStatus": "verified",
+      "factualDescriptionFa": "شوت هدفمند مهاجم به سمت چارچوب دروازه حریف",
+      "tacticalNotesFa": "استفاده هوشمندانه از فضای پشت مدافعان و چرخش سریع",
+      "createdAt": "2026-10-24T09:14:07.865Z"
+    },
+    {
+      "id": "evt_1792833275025",
+      "matchId": "match_tehran_derby_104",
+      "sourceTimestampPts": 1.5,
+      "type": "shot",
+      "confidence": 0.9,
+      "evidenceSources": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "verificationStatus": "verified",
+      "factualDescriptionFa": "شوت هدفمند مهاجم به سمت چارچوب دروازه حریف",
+      "tacticalNotesFa": "استفاده هوشمندانه از فضای پشت مدافعان و چرخش سریع",
+      "createdAt": "2026-10-24T09:14:35.025Z"
     }
   ],
   "commentarySegments": [
@@ -291,10 +354,142 @@
         "spectator_celebration"
       ],
       "delivered": true
+    },
+    {
+      "id": "comm_1792833192814_3ho5",
+      "linkedEventId": "evt_1792833146117",
+      "persianText": "فرار عالی به فضای پشت دفاع، یه چرخش فوق‌العاده و حالا ضربه خطرناک و تماشایی به سمت چارچوب دروازه!",
+      "sourceMediaTargetPts": 2,
+      "priority": "high",
+      "intensity": "high",
+      "emotion": "excited",
+      "estimatedDurationSeconds": 4.5,
+      "confidence": 0.9,
+      "evidenceReferences": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "delivered": false,
+      "audioUrl": "/api/v1/audio/tts_96eb24bd86d8df66.wav"
+    },
+    {
+      "id": "comm_1792833192814_3ho5",
+      "linkedEventId": "evt_1792833146117",
+      "persianText": "فرار عالی به فضای پشت دفاع، یه چرخش فوق‌العاده و حالا ضربه خطرناک و تماشایی به سمت چارچوب دروازه!",
+      "sourceMediaTargetPts": 2,
+      "priority": "high",
+      "intensity": "high",
+      "emotion": "excited",
+      "estimatedDurationSeconds": 4.5,
+      "confidence": 0.9,
+      "evidenceReferences": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "delivered": false,
+      "audioUrl": "/api/v1/audio/tts_96eb24bd86d8df66.wav"
+    },
+    {
+      "id": "comm_1792833248870_m2pr",
+      "linkedEventId": "evt_1792833247865",
+      "persianText": "فرصت برای شوت‌زنی... ضربه سرضرب و خطرناک  که با بدشانسی مهار شد!",
+      "sourceMediaTargetPts": 2,
+      "priority": "high",
+      "intensity": "high",
+      "emotion": "dramatic",
+      "estimatedDurationSeconds": 4.8,
+      "confidence": 0.9,
+      "evidenceReferences": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "delivered": false,
+      "audioUrl": ""
+    },
+    {
+      "id": "comm_1792833248870_m2pr",
+      "linkedEventId": "evt_1792833247865",
+      "persianText": "فرصت برای شوت‌زنی... ضربه سرضرب و خطرناک  که با بدشانسی مهار شد!",
+      "sourceMediaTargetPts": 2,
+      "priority": "high",
+      "intensity": "high",
+      "emotion": "dramatic",
+      "estimatedDurationSeconds": 4.8,
+      "confidence": 0.9,
+      "evidenceReferences": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "delivered": false,
+      "audioUrl": ""
+    },
+    {
+      "id": "comm_1792833276030_sf9b",
+      "linkedEventId": "evt_1792833275025",
+      "persianText": "فرصت برای شوت‌زنی... ضربه سرضرب و خطرناک  که با بدشانسی مهار شد!",
+      "sourceMediaTargetPts": 2,
+      "priority": "high",
+      "intensity": "high",
+      "emotion": "dramatic",
+      "estimatedDurationSeconds": 4.8,
+      "confidence": 0.9,
+      "evidenceReferences": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "delivered": false,
+      "audioUrl": ""
+    },
+    {
+      "id": "comm_1792833276030_sf9b",
+      "linkedEventId": "evt_1792833275025",
+      "persianText": "فرصت برای شوت‌زنی... ضربه سرضرب و خطرناک  که با بدشانسی مهار شد!",
+      "sourceMediaTargetPts": 2,
+      "priority": "high",
+      "intensity": "high",
+      "emotion": "dramatic",
+      "estimatedDurationSeconds": 4.8,
+      "confidence": 0.9,
+      "evidenceReferences": [
+        "video_frames",
+        "audio_clues",
+        "verified_metadata"
+      ],
+      "delivered": false,
+      "audioUrl": ""
     }
   ],
   "audioAssets": [],
   "auditLogs": [
+    {
+      "adminId": "admin_master_1",
+      "action": "PIPELINE_SAMPLE_JOB",
+      "details": "پردازش خط لوله کامل نمونه با موفقیت در 3304 میلی‌ثانیه برای فایل test_clip.mp4 انجام شد.",
+      "ipAddress": "127.0.0.1",
+      "id": "audit_1792833277227_udgz",
+      "timestamp": "2026-10-24T09:14:37.227Z"
+    },
+    {
+      "adminId": "admin_master_1",
+      "action": "PIPELINE_SAMPLE_JOB",
+      "details": "پردازش خط لوله کامل نمونه با موفقیت در 3310 میلی‌ثانیه برای فایل test_clip.mp4 انجام شد.",
+      "ipAddress": "127.0.0.1",
+      "id": "audit_1792833250067_y68g",
+      "timestamp": "2026-10-24T09:14:10.067Z"
+    },
+    {
+      "adminId": "admin_master_1",
+      "action": "PIPELINE_SAMPLE_JOB",
+      "details": "پردازش خط لوله کامل نمونه با موفقیت در 110439 میلی‌ثانیه برای فایل test_clip.mp4 انجام شد.",
+      "ipAddress": "127.0.0.1",
+      "id": "audit_1792833198259_vkw7",
+      "timestamp": "2026-10-24T09:13:18.259Z"
+    },
     {
       "adminId": "admin_master_1",
       "action": "ADMIN_LOGIN",

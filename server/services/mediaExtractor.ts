@@ -273,13 +273,22 @@ export class MediaExtractorService {
         }
 
         const modelName = 'gemini-3.8-flash';
-        const response = await this.aiClient.models.generateContent({
-          model: modelName,
-          contents: parts,
-          config: {
-            responseMimeType: 'application/json',
-          },
+        const timeoutMs = process.env.NODE_ENV === 'test' ? 1000 : 5000;
+        let timer: NodeJS.Timeout;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`AI inference timeout (${timeoutMs}ms)`)), timeoutMs);
+          timer.unref();
         });
+        const response = await Promise.race([
+          this.aiClient.models.generateContent({
+            model: modelName,
+            contents: parts,
+            config: {
+              responseMimeType: 'application/json',
+            },
+          }),
+          timeoutPromise,
+        ]).finally(() => clearTimeout(timer));
 
         const rawJson = JSON.parse(response.text || '{}');
         const validated = TemporalActionSchema.parse(rawJson);

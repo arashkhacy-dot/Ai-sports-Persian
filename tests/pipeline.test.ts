@@ -8,6 +8,7 @@ import { MediaExtractorService } from '../server/services/mediaExtractor.ts';
 import { PersianTTSProvider } from '../server/services/ttsProvider.ts';
 import { OfflineRenderService } from '../server/services/offlineRenderService.ts';
 import { FFmpegWorkerService } from '../server/services/ffmpegWorker.ts';
+import { PipelineCoordinatorService } from '../server/services/pipelineCoordinator.ts';
 import { CommentarySegment } from '../server/types.ts';
 
 const execFileAsync = promisify(execFile);
@@ -122,3 +123,37 @@ test('Pipeline: OfflineRenderService performs synchronized audio mixing with PTS
   assert.equal(result.probeResult.hasAudio, true, 'Output must have audio');
   assert.ok(result.probeResult.durationSeconds >= 4.5, `Output duration should match source (~5s), got ${result.probeResult.durationSeconds}`);
 });
+
+test('Pipeline: PipelineCoordinatorService runs bounded end-to-end job on local test clip', async () => {
+  const testClip = path.resolve(process.cwd(), 'data', 'test_clip.mp4');
+  await ensureTestClip(testClip);
+
+  const coordinator = PipelineCoordinatorService.getInstance();
+  const res = await coordinator.runBoundedPipelineJob({
+    videoPath: testClip,
+    startPts: 0,
+    durationSeconds: 5,
+    outputFormat: 'mp4',
+    duckingLevel: 0.35,
+  });
+
+  assert.equal(res.success, true, 'Bounded pipeline job must succeed');
+  assert.equal(res.stage, 'COMPLETED');
+  assert.ok(res.event, 'Should produce a verified event');
+  assert.ok(res.commentary, 'Should produce Persian commentary');
+  assert.ok(res.commentary.persianText.length > 5, 'Commentary must have Persian text');
+  assert.ok(res.tts, 'Should include TTS result');
+  assert.ok(res.tts.durationSeconds && res.tts.durationSeconds > 0, 'TTS must have positive probed duration');
+  assert.ok(res.render, 'Should include render result');
+  assert.equal(res.render.success, true, 'Render must succeed');
+  assert.ok(fs.existsSync(res.render.outputPath), 'Rendered output file must exist on disk');
+  assert.ok(res.render.probeResult?.hasVideo, 'Rendered file must have video stream');
+  assert.ok(res.render.probeResult?.hasAudio, 'Rendered file must have mixed audio stream');
+});
+
+test.after(() => {
+  // Allow pending microtasks to flush, then cleanly exit test process
+  setTimeout(() => process.exit(0), 50).unref();
+});
+
+

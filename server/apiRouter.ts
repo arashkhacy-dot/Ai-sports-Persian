@@ -9,6 +9,7 @@ import { FFmpegWorkerService } from './services/ffmpegWorker.ts';
 import { MediaExtractorService } from './services/mediaExtractor.ts';
 import { OfflineRenderService } from './services/offlineRenderService.ts';
 import { PersianTTSProvider } from './services/ttsProvider.ts';
+import { PipelineCoordinatorService } from './services/pipelineCoordinator.ts';
 import { Match, MediaSource, SystemMetrics } from './types.ts';
 
 const router = express.Router();
@@ -538,9 +539,15 @@ router.post('/admin/analyze-sample', adminAuth, async (req: Request, res: Respon
       videoPath = path.resolve(process.cwd(), 'data', 'uploads', path.basename(videoPath));
     }
 
+    const pathVal = SourceValidator.validateLocalMediaPath(videoPath);
+    if (!pathVal.isValid || !pathVal.sanitizedPath) {
+      res.status(400).json({ error: pathVal.error || 'مسیر فایل نامعتبر است.' });
+      return;
+    }
+
     const extractor = MediaExtractorService.getInstance();
     const result = await extractor.analyzeSampleJob({
-      videoPath,
+      videoPath: pathVal.sanitizedPath,
       startPts: Number(startPts),
       durationSeconds: Number(durationSeconds),
     });
@@ -572,13 +579,19 @@ router.post('/admin/render-mix', adminAuth, async (req: Request, res: Response) 
       sourcePath = path.resolve(process.cwd(), 'data', 'uploads', path.basename(sourcePath));
     }
 
+    const pathVal = SourceValidator.validateLocalMediaPath(sourcePath);
+    if (!pathVal.isValid || !pathVal.sanitizedPath) {
+      res.status(400).json({ error: pathVal.error || 'مسیر فایل منبع نامعتبر است.' });
+      return;
+    }
+
     if (!commentarySegments || !Array.isArray(commentarySegments) || commentarySegments.length === 0) {
       commentarySegments = db.getCommentarySegments();
     }
 
     const renderService = OfflineRenderService.getInstance();
     const result = await renderService.renderSynchronizedOutput({
-      sourcePath,
+      sourcePath: pathVal.sanitizedPath,
       commentarySegments,
       outputFormat: outputFormat === 'mp4' ? 'mp4' : 'hls',
       duckingLevel: Number(duckingLevel),
@@ -587,6 +600,37 @@ router.post('/admin/render-mix', adminAuth, async (req: Request, res: Response) 
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'خطا در رندر خروجی همگام' });
+  }
+});
+
+// Phase 3 Checkpoint D1/D2: Bounded End-to-End Pipeline Job
+// Connects: sample analysis → verified commentary → real TTS → synchronized audio render
+router.post('/admin/pipeline/run-sample-job', adminAuth, async (req: Request, res: Response) => {
+  try {
+    const {
+      videoPath,
+      startPts = 0,
+      durationSeconds = 10,
+      commentaryStyle = 'energetic',
+      voicePersona = 'پژمان (گزارشگر رسمی)',
+      duckingLevel = 0.35,
+      outputFormat = 'mp4',
+    } = req.body;
+
+    const coordinator = PipelineCoordinatorService.getInstance();
+    const result = await coordinator.runBoundedPipelineJob({
+      videoPath,
+      startPts: Number(startPts),
+      durationSeconds: Number(durationSeconds),
+      commentaryStyle,
+      voicePersona,
+      duckingLevel: Number(duckingLevel),
+      outputFormat: outputFormat === 'hls' ? 'hls' : 'mp4',
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'خطا در اجرای فرآیند یکپارچه خط لوله' });
   }
 });
 

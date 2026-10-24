@@ -1,4 +1,6 @@
 import { URL } from 'url';
+import path from 'path';
+import fs from 'fs';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -84,5 +86,55 @@ export class SourceValidator {
       sanitizedUrl: parsed.toString(),
       isStream: isHls || isRtmp,
     };
+  }
+
+  /**
+   * Safe local media path validation protecting against directory traversal
+   * and verifying that files reside strictly within permitted data/upload directories
+   */
+  public static validateLocalMediaPath(inputPath: string): { isValid: boolean; sanitizedPath?: string; error?: string } {
+    if (!inputPath || typeof inputPath !== 'string') {
+      return { isValid: false, error: 'مسیر فایل مشخص نشده است.' };
+    }
+
+    const trimmed = inputPath.trim();
+    if (trimmed.includes('\0')) {
+      return { isValid: false, error: 'مسیر شامل کاراکترهای غیرمجاز است.' };
+    }
+
+    // Resolve path against working directory
+    const resolved = path.isAbsolute(trimmed)
+      ? path.normalize(trimmed)
+      : path.resolve(process.cwd(), trimmed);
+
+    // Allowed directory roots
+    const allowedRoots = [
+      path.resolve(process.cwd(), 'data'),
+      path.resolve(process.cwd(), 'public'),
+      '/tmp',
+    ];
+
+    const isInsideAllowedRoot = allowedRoots.some(
+      (root) => resolved === root || resolved.startsWith(root + path.sep)
+    );
+
+    if (!isInsideAllowedRoot) {
+      return {
+        isValid: false,
+        error: 'دسترسی به مسیرهای خارج از دایرکتوری مجاز داده‌ها مسدود گردید.',
+      };
+    }
+
+    // Allowed multimedia extensions
+    const ext = path.extname(resolved).toLowerCase();
+    const allowedExtensions = ['.mp4', '.m4v', '.mov', '.mkv', '.ts', '.wav', '.m3u8'];
+    if (!allowedExtensions.includes(ext)) {
+      return {
+        isValid: false,
+        error: `پسوند ${ext} غیرمجاز است. تنها فرمت‌های چندرسانه‌ای مجاز هستند.`,
+      };
+    }
+
+    return { isValid: true, sanitizedPath: resolved };
   }
 }
